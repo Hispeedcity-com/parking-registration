@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Review Information</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo" onclick="window.location.href='index.html'" style="cursor:pointer;">
+                    <span class="logo-text">Hi<span class="logo-highlight">speedcity</span></span>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+            <div class="form-container">
+                <div class="form-header">
+                    <h1 data-testid="review-title">Review Your Information</h1>
+                    <p class="form-note">Please review your information before proceeding.</p>
+                </div>
+
+                <div class="review-container" data-testid="review-container">
+                    <div class="review-section">
+                        <h2>Personal Information</h2>
+                        <div class="review-item">
+                            <span class="review-label">Full Name:</span>
+                            <span class="review-value" id="review-fullName" data-testid="review-full-name"></span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Phone Number:</span>
+                            <span class="review-value" id="review-phoneNumber" data-testid="review-phone"></span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Company Name:</span>
+                            <span class="review-value" id="review-companyName" data-testid="review-company"></span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Staff ID:</span>
+                            <span class="review-value" id="review-staffId" data-testid="review-staff-id"></span>
+                        </div>
+                    </div>
+
+                    <div class="review-section">
+                        <h2>Vehicle Information</h2>
+                        <div class="review-item">
+                            <span class="review-label">Vehicle Number:</span>
+                            <span class="review-value" id="review-vehicleNumber" data-testid="review-vehicle-number"></span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Vehicle Model:</span>
+                            <span class="review-value" id="review-vehicleModel" data-testid="review-vehicle-model"></span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Vehicle Type:</span>
+                            <span class="review-value" id="review-vehicleType" data-testid="review-vehicle-type"></span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Vehicle Color:</span>
+                            <span class="review-value" id="review-vehicleColor" data-testid="review-vehicle-color"></span>
+                        </div>
+                    </div>
+
+                    <div class="review-section">
+                        <h2>Parking Subscription</h2>
+                        <div class="review-item">
+                            <span class="review-label">Parking Type:</span>
+                            <span class="review-value" id="review-parkingType" data-testid="review-parking-type"></span>
+                        </div>
+                        <div class="review-item">
+                            <span class="review-label">Subscription Period:</span>
+                            <span class="review-value" id="review-subscriptionPeriod" data-testid="review-subscription"></span>
+                        </div>
+                        <div class="review-item total-amount">
+                            <span class="review-label">Total Amount:</span>
+                            <span class="review-value" id="review-totalAmount" data-testid="review-total-amount"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="window.location.href='registration.html'" data-testid="edit-info-btn">Edit Information</button>
+                    <button type="button" class="btn btn-primary" onclick="window.location.href='payment.html'" data-testid="proceed-payment-btn">Proceed to Payment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="review.js"></script>
+</body>
+</html>

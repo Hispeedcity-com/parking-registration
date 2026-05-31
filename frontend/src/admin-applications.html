@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applications</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page admin-page">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo" onclick="window.location.href='admin-dashboard.html'" style="cursor:pointer;">
+                    <span class="logo-text">Hi<span class="logo-highlight">speedcity</span></span>
+                    <span class="admin-badge">Admin</span>
+                </div>
+                <a href="index.html" class="logout-link" data-testid="logout-link">Logout</a>
+            </div>
+        </nav>
+
+        <div class="container">
+            <div class="applications">
+                <div class="applications-header">
+                    <h1 data-testid="applications-title">Season Parking Applications</h1>
+                    <button class="btn btn-secondary" onclick="window.location.href='admin-dashboard.html'" data-testid="back-dashboard-btn">Back to Dashboard</button>
+                </div>
+
+                <div class="applications-list" id="applicationsList" data-testid="applications-list">
+                    <!-- Applications will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin-applications.js"></script>
+</body>
+</html>

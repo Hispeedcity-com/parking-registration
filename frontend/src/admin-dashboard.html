@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page admin-page">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo">
+                    <span class="logo-text">Hi<span class="logo-highlight">speedcity</span></span>
+                    <span class="admin-badge">Admin</span>
+                </div>
+                <a href="index.html" class="logout-link" data-testid="logout-link">Logout</a>
+            </div>
+        </nav>
+
+        <div class="container">
+            <div class="dashboard">
+                <h1 data-testid="dashboard-title">Dashboard</h1>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon total">📄</div>
+                        <div class="stat-content">
+                            <h3 id="totalApplications" data-testid="total-applications">0</h3>
+                            <p>Total Applications</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon pending">⏳</div>
+                        <div class="stat-content">
+                            <h3 id="pendingCount" data-testid="pending-count">0</h3>
+                            <p>Pending</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon approved">✓</div>
+                        <div class="stat-content">
+                            <h3 id="approvedCount" data-testid="approved-count">0</h3>
+                            <p>Approved</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon rejected">✕</div>
+                        <div class="stat-content">
+                            <h3 id="rejectedCount" data-testid="rejected-count">0</h3>
+                            <p>Rejected</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-actions">
+                    <button class="btn btn-primary" onclick="window.location.href='admin-applications.html'" data-testid="view-applications-btn">View All Applications</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin-dashboard.js"></script>
+</body>
+</html>

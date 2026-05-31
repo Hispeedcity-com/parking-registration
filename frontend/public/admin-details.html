@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Application Details</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="page admin-page">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo" onclick="window.location.href='admin-dashboard.html'" style="cursor:pointer;">
+                    <span class="logo-text">Hi<span class="logo-highlight">speedcity</span></span>
+                    <span class="admin-badge">Admin</span>
+                </div>
+                <a href="index.html" class="logout-link" data-testid="logout-link">Logout</a>
+            </div>
+        </nav>
+
+        <div class="container">
+            <div class="application-details">
+                <div class="details-header">
+                    <h1 data-testid="details-title">Application Details</h1>
+                    <div class="details-actions">
+                        <button class="btn btn-secondary" onclick="window.location.href='admin-applications.html'" data-testid="back-list-btn">Back to List</button>
+                    </div>
+                </div>
+
+                <div class="details-container" id="detailsContainer">
+                    <!-- Details will be populated here -->
+                </div>
+
+                <div class="form-actions" id="actionButtons" style="display:none;">
+                    <button type="button" class="btn btn-danger" id="rejectBtn" data-testid="reject-btn">Reject</button>
+                    <button type="button" class="btn btn-success" id="approveBtn" data-testid="approve-btn">Approve</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin-details.js"></script>
+</body>
+</html>
