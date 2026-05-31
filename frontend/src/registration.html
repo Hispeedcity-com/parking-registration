@@ -51,60 +51,30 @@
                     </div>
 
                     <div class="form-section">
-                        <h2>Vehicle Information</h2>
+                        <h2>Number of Vehicles</h2>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="vehicleNumber">Vehicle Number *</label>
-                                <input type="text" id="vehicleNumber" name="vehicleNumber" required data-testid="vehicle-number-input" placeholder="e.g., ABC 1234">
-                            </div>
-                            <div class="form-group">
-                                <label for="vehicleModel">Vehicle Model *</label>
-                                <input type="text" id="vehicleModel" name="vehicleModel" required data-testid="vehicle-model-input" placeholder="e.g., Toyota Camry">
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Vehicle Type *</label>
-                                <div class="radio-group">
-                                    <label class="radio-label">
-                                        <input type="radio" name="vehicleType" value="Sedan" required data-testid="vehicle-type-sedan">
-                                        <span>Sedan</span>
-                                    </label>
-                                    <label class="radio-label">
-                                        <input type="radio" name="vehicleType" value="Hatchback" data-testid="vehicle-type-hatchback">
-                                        <span>Hatchback</span>
-                                    </label>
-                                    <label class="radio-label">
-                                        <input type="radio" name="vehicleType" value="SUV" data-testid="vehicle-type-suv">
-                                        <span>SUV</span>
-                                    </label>
-                                    <label class="radio-label">
-                                        <input type="radio" name="vehicleType" value="Mini Van" data-testid="vehicle-type-minivan">
-                                        <span>Mini Van</span>
-                                    </label>
-                                    <label class="radio-label">
-                                        <input type="radio" name="vehicleType" value="Others" data-testid="vehicle-type-others">
-                                        <span>Others</span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="vehicleColor">Vehicle Color *</label>
-                                <input type="text" id="vehicleColor" name="vehicleColor" required data-testid="vehicle-color-input">
+                                <label for="numberOfCars">How many cars do you want to register? *</label>
+                                <select id="numberOfCars" name="numberOfCars" required data-testid="number-of-cars-select" class="form-select">
+                                    <option value="">Select number of cars</option>
+                                    <option value="1">1 Car</option>
+                                    <option value="2">2 Cars</option>
+                                    <option value="3">3 Cars</option>
+                                </select>
                             </div>
                         </div>
                     </div>
 
-                    <div class="form-section">
+                    <div id="vehiclesContainer"></div>
+
+                    <div class="form-section" id="parkingSection" style="display:none;">
                         <h2>Parking Subscription</h2>
                         <div class="form-row">
                             <div class="form-group">
                                 <label>Parking Type *</label>
                                 <div class="radio-group">
                                     <label class="radio-label">
-                                        <input type="radio" name="parkingType" value="Non Reserved" data-price="150" required data-testid="parking-type-non-reserved">
+                                        <input type="radio" name="parkingType" value="Non Reserved" data-price="150" data-testid="parking-type-non-reserved">
                                         <span>Non Reserved (RM150)</span>
                                     </label>
                                     <label class="radio-label">
@@ -123,7 +93,7 @@
                                 <label>Subscription Period *</label>
                                 <div class="radio-group">
                                     <label class="radio-label">
-                                        <input type="radio" name="subscriptionPeriod" value="Monthly" data-multiplier="1" required data-testid="subscription-monthly">
+                                        <input type="radio" name="subscriptionPeriod" value="Monthly" data-multiplier="1" data-testid="subscription-monthly">
                                         <span>Monthly</span>
                                     </label>
                                     <label class="radio-label">
