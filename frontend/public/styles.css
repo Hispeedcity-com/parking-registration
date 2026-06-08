@@ -22,11 +22,36 @@
     box-sizing: border-box;
 }
 
+/* Suppress browser default validation styling that causes red flashes */
+input:invalid,
+input:required,
+select:invalid,
+select:required {
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+input:-moz-ui-invalid,
+select:-moz-ui-invalid {
+    box-shadow: none !important;
+}
+
+/* Smooth page transitions to prevent FOUC */
+html {
+    background-color: #F5F5F5;
+}
+
 body {
     font-family: var(--font-primary);
     color: var(--text-dark);
     background-color: var(--bg-light);
     line-height: 1.6;
+    animation: pageLoad 0.3s ease-in;
+}
+
+@keyframes pageLoad {
+    from { opacity: 0.85; }
+    to { opacity: 1; }
 }
 
 .container {
