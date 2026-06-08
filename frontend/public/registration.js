@@ -8,172 +8,285 @@ document.getElementById('numberOfCars').addEventListener('change', function(e) {
     document.getElementById('parkingSection').style.display = 'block';
 });
 
+// Helper function to create form group element
+function createFormGroup(labelText, inputConfig) {
+    const formGroup = document.createElement('div');
+    formGroup.className = 'form-group';
+    
+    const label = document.createElement('label');
+    label.setAttribute('for', inputConfig.id);
+    label.textContent = labelText;
+    
+    const input = document.createElement('input');
+    Object.keys(inputConfig).forEach(key => {
+        if (key === 'dataset') {
+            Object.keys(inputConfig.dataset).forEach(dataKey => {
+                input.dataset[dataKey] = inputConfig.dataset[dataKey];
+            });
+        } else {
+            input.setAttribute(key, inputConfig[key]);
+        }
+    });
+    
+    formGroup.appendChild(label);
+    formGroup.appendChild(input);
+    return formGroup;
+}
+
+// Helper function to create checkbox option
+function createCheckboxOption(name, value, testId, labelText) {
+    const label = document.createElement('label');
+    label.className = 'checkbox-label';
+    
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.name = name;
+    checkbox.value = value;
+    checkbox.setAttribute('data-testid', testId);
+    
+    const span = document.createElement('span');
+    span.textContent = labelText;
+    
+    label.appendChild(checkbox);
+    label.appendChild(span);
+    return label;
+}
+
+// Helper function to create vehicle section
+function createVehicleSection(index) {
+    const section = document.createElement('div');
+    section.className = 'form-section vehicle-section';
+    
+    // Title
+    const title = document.createElement('h3');
+    title.textContent = `Vehicle ${index + 1} Information`;
+    section.appendChild(title);
+    
+    // First row: Vehicle Number and Model
+    const row1 = document.createElement('div');
+    row1.className = 'form-row';
+    
+    row1.appendChild(createFormGroup('Vehicle Number *', {
+        type: 'text',
+        id: `vehicleNumber${index}`,
+        name: `vehicleNumber${index}`,
+        required: true,
+        placeholder: 'e.g., ABC 1234',
+        dataset: { testid: `vehicle-number-input-${index}` }
+    }));
+    
+    row1.appendChild(createFormGroup('Vehicle Model *', {
+        type: 'text',
+        id: `vehicleModel${index}`,
+        name: `vehicleModel${index}`,
+        required: true,
+        placeholder: 'e.g., Toyota Camry',
+        dataset: { testid: `vehicle-model-input-${index}` }
+    }));
+    
+    section.appendChild(row1);
+    
+    // Second row: Vehicle Type
+    const row2 = document.createElement('div');
+    row2.className = 'form-row';
+    
+    const typeGroup = document.createElement('div');
+    typeGroup.className = 'form-group full-width';
+    
+    const typeLabel = document.createElement('label');
+    typeLabel.textContent = 'Vehicle Type * (Check one)';
+    typeGroup.appendChild(typeLabel);
+    
+    const checkboxGroup = document.createElement('div');
+    checkboxGroup.className = 'checkbox-group';
+    
+    const vehicleTypes = [
+        { value: 'Sedan', label: 'Sedan' },
+        { value: 'Hatchback', label: 'Hatchback' },
+        { value: 'SUV', label: 'SUV' },
+        { value: 'Mini Van', label: 'Mini Van' },
+        { value: 'Others', label: 'Others' }
+    ];
+    
+    vehicleTypes.forEach(type => {
+        const checkboxLabel = createCheckboxOption(
+            `vehicleType${index}`,
+            type.value,
+            `vehicle-type-${type.value.toLowerCase().replace(' ', '-')}-${index}`,
+            type.label
+        );
+        checkboxGroup.appendChild(checkboxLabel);
+    });
+    
+    typeGroup.appendChild(checkboxGroup);
+    row2.appendChild(typeGroup);
+    section.appendChild(row2);
+    
+    // Third row: Vehicle Color
+    const row3 = document.createElement('div');
+    row3.className = 'form-row';
+    
+    row3.appendChild(createFormGroup('Vehicle Color *', {
+        type: 'text',
+        id: `vehicleColor${index}`,
+        name: `vehicleColor${index}`,
+        required: true,
+        dataset: { testid: `vehicle-color-input-${index}` }
+    }));
+    
+    section.appendChild(row3);
+    
+    return section;
+}
+
 function generateVehicleSections(count) {
     const container = document.getElementById('vehiclesContainer');
     container.innerHTML = '';
     
     for (let i = 0; i < count; i++) {
-        const vehicleSection = document.createElement('div');
-        vehicleSection.className = 'form-section vehicle-section';
-        vehicleSection.innerHTML = `
-            <h3>Vehicle ${i + 1} Information</h3>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="vehicleNumber${i}">Vehicle Number *</label>
-                    <input type="text" id="vehicleNumber${i}" name="vehicleNumber${i}" required data-testid="vehicle-number-input-${i}" placeholder="e.g., ABC 1234">
-                </div>
-                <div class="form-group">
-                    <label for="vehicleModel${i}">Vehicle Model *</label>
-                    <input type="text" id="vehicleModel${i}" name="vehicleModel${i}" required data-testid="vehicle-model-input-${i}" placeholder="e.g., Toyota Camry">
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group full-width">
-                    <label>Vehicle Type * (Check one)</label>
-                    <div class="checkbox-group">
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="vehicleType${i}" value="Sedan" data-testid="vehicle-type-sedan-${i}">
-                            <span>Sedan</span>
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="vehicleType${i}" value="Hatchback" data-testid="vehicle-type-hatchback-${i}">
-                            <span>Hatchback</span>
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="vehicleType${i}" value="SUV" data-testid="vehicle-type-suv-${i}">
-                            <span>SUV</span>
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="vehicleType${i}" value="Mini Van" data-testid="vehicle-type-minivan-${i}">
-                            <span>Mini Van</span>
-                        </label>
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="vehicleType${i}" value="Others" data-testid="vehicle-type-others-${i}">
-                            <span>Others</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="vehicleColor${i}">Vehicle Color *</label>
-                    <input type="text" id="vehicleColor${i}" name="vehicleColor${i}" required data-testid="vehicle-color-input-${i}">
-                </div>
-            </div>
-        `;
+        const vehicleSection = createVehicleSection(i);
         container.appendChild(vehicleSection);
         
         // Add checkbox restriction (only one can be checked per vehicle)
-        const checkboxes = vehicleSection.querySelectorAll(`input[name="vehicleType${i}"]`);
-        checkboxes.forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                if (this.checked) {
-                    checkboxes.forEach(cb => {
-                        if (cb !== this) cb.checked = false;
-                    });
-                }
-            });
-        });
+        setupCheckboxRestriction(vehicleSection, i);
     }
 }
 
-document.getElementById('registrationForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    // Get personal information
-    const formData = {
-        fullName: document.getElementById('fullName').value,
-        phoneNumber: document.getElementById('phoneNumber').value,
-        companyName: document.getElementById('companyName').value,
-        staffId: document.getElementById('staffId').value,
-        numberOfCars: numberOfVehicles,
-        vehicles: [],
-        parkingType: document.querySelector('input[name="parkingType"]:checked')?.value,
-        subscriptionPeriod: document.querySelector('input[name="subscriptionPeriod"]:checked')?.value
-    };
-    
-    // Validate parking selection
-    if (!formData.parkingType) {
-        alert('Please select a parking type');
-        return;
-    }
-    if (!formData.subscriptionPeriod) {
-        alert('Please select a subscription period');
-        return;
-    }
-    
-    // Collect vehicle information
+function setupCheckboxRestriction(section, index) {
+    const checkboxes = section.querySelectorAll(`input[name="vehicleType${index}"]`);
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                checkboxes.forEach(cb => {
+                    if (cb !== this) cb.checked = false;
+                });
+            }
+        });
+    });
+}
+
+// Helper function to collect vehicle data
+function collectVehicleData() {
+    const vehicles = [];
     for (let i = 0; i < numberOfVehicles; i++) {
         const vehicleType = document.querySelector(`input[name="vehicleType${i}"]:checked`)?.value;
         
         if (!vehicleType) {
-            alert(`Please select vehicle type for Vehicle ${i + 1}`);
-            return;
+            throw new Error(`Please select vehicle type for Vehicle ${i + 1}`);
         }
         
-        formData.vehicles.push({
+        vehicles.push({
             vehicleNumber: document.getElementById(`vehicleNumber${i}`).value,
             vehicleModel: document.getElementById(`vehicleModel${i}`).value,
             vehicleType: vehicleType,
             vehicleColor: document.getElementById(`vehicleColor${i}`).value
         });
     }
+    return vehicles;
+}
+
+// Helper function to validate parking selections
+function validateParkingSelections() {
+    const parkingType = document.querySelector('input[name="parkingType"]:checked')?.value;
+    const subscriptionPeriod = document.querySelector('input[name="subscriptionPeriod"]:checked')?.value;
     
-    // Calculate total amount
+    if (!parkingType) {
+        throw new Error('Please select a parking type');
+    }
+    if (!subscriptionPeriod) {
+        throw new Error('Please select a subscription period');
+    }
+    
+    return { parkingType, subscriptionPeriod };
+}
+
+// Helper function to calculate total amount
+function calculateTotalAmount() {
     const parkingPrice = parseInt(document.querySelector('input[name="parkingType"]:checked').dataset.price);
     const multiplier = parseInt(document.querySelector('input[name="subscriptionPeriod"]:checked').dataset.multiplier);
-    formData.totalAmount = parkingPrice * multiplier * numberOfVehicles;
+    return parkingPrice * multiplier * numberOfVehicles;
+}
+
+// Helper function to get personal information
+function getPersonalInformation() {
+    return {
+        fullName: document.getElementById('fullName').value,
+        phoneNumber: document.getElementById('phoneNumber').value,
+        companyName: document.getElementById('companyName').value,
+        staffId: document.getElementById('staffId').value,
+        numberOfCars: numberOfVehicles
+    };
+}
+
+document.getElementById('registrationForm').addEventListener('submit', function(e) {
+    e.preventDefault();
     
-    // Store in localStorage
-    localStorage.setItem('currentApplication', JSON.stringify(formData));
-    
-    // Navigate to review page
-    window.location.href = 'review.html';
+    try {
+        const formData = getPersonalInformation();
+        const parkingSelections = validateParkingSelections();
+        const vehicles = collectVehicleData();
+        
+        formData.vehicles = vehicles;
+        formData.parkingType = parkingSelections.parkingType;
+        formData.subscriptionPeriod = parkingSelections.subscriptionPeriod;
+        formData.totalAmount = calculateTotalAmount();
+        
+        localStorage.setItem('currentApplication', JSON.stringify(formData));
+        window.location.href = 'review.html';
+    } catch (error) {
+        alert(error.message);
+    }
 });
+
+// Helper function to populate vehicle fields
+function populateVehicleFields(data) {
+    if (!data.numberOfCars) return;
+    
+    document.getElementById('numberOfCars').value = data.numberOfCars;
+    numberOfVehicles = data.numberOfCars;
+    generateVehicleSections(numberOfVehicles);
+    document.getElementById('parkingSection').style.display = 'block';
+    
+    setTimeout(() => {
+        data.vehicles.forEach((vehicle, i) => {
+            document.getElementById(`vehicleNumber${i}`).value = vehicle.vehicleNumber || '';
+            document.getElementById(`vehicleModel${i}`).value = vehicle.vehicleModel || '';
+            document.getElementById(`vehicleColor${i}`).value = vehicle.vehicleColor || '';
+            
+            if (vehicle.vehicleType) {
+                const checkbox = document.querySelector(`input[name="vehicleType${i}"][value="${vehicle.vehicleType}"]`);
+                if (checkbox) checkbox.checked = true;
+            }
+        });
+    }, 100);
+}
+
+// Helper function to populate parking selections
+function populateParkingSelections(data) {
+    if (data.parkingType) {
+        const parkingTypeRadio = document.querySelector(`input[name="parkingType"][value="${data.parkingType}"]`);
+        if (parkingTypeRadio) parkingTypeRadio.checked = true;
+    }
+    
+    if (data.subscriptionPeriod) {
+        const subscriptionRadio = document.querySelector(`input[name="subscriptionPeriod"][value="${data.subscriptionPeriod}"]`);
+        if (subscriptionRadio) subscriptionRadio.checked = true;
+    }
+}
 
 // Load existing data if returning from review page
 window.addEventListener('DOMContentLoaded', function() {
     const savedData = localStorage.getItem('currentApplication');
-    if (savedData) {
-        const data = JSON.parse(savedData);
-        
-        // Populate personal fields
-        document.getElementById('fullName').value = data.fullName || '';
-        document.getElementById('phoneNumber').value = data.phoneNumber || '';
-        document.getElementById('companyName').value = data.companyName || '';
-        document.getElementById('staffId').value = data.staffId || '';
-        
-        // Set number of cars
-        if (data.numberOfCars) {
-            document.getElementById('numberOfCars').value = data.numberOfCars;
-            numberOfVehicles = data.numberOfCars;
-            generateVehicleSections(numberOfVehicles);
-            document.getElementById('parkingSection').style.display = 'block';
-            
-            // Populate vehicle data
-            setTimeout(() => {
-                data.vehicles.forEach((vehicle, i) => {
-                    document.getElementById(`vehicleNumber${i}`).value = vehicle.vehicleNumber || '';
-                    document.getElementById(`vehicleModel${i}`).value = vehicle.vehicleModel || '';
-                    document.getElementById(`vehicleColor${i}`).value = vehicle.vehicleColor || '';
-                    
-                    if (vehicle.vehicleType) {
-                        const checkbox = document.querySelector(`input[name="vehicleType${i}"][value="${vehicle.vehicleType}"]`);
-                        if (checkbox) checkbox.checked = true;
-                    }
-                });
-            }, 100);
-        }
-        
-        // Set parking selections
-        if (data.parkingType) {
-            const parkingTypeRadio = document.querySelector(`input[name="parkingType"][value="${data.parkingType}"]`);
-            if (parkingTypeRadio) parkingTypeRadio.checked = true;
-        }
-        
-        if (data.subscriptionPeriod) {
-            const subscriptionRadio = document.querySelector(`input[name="subscriptionPeriod"][value="${data.subscriptionPeriod}"]`);
-            if (subscriptionRadio) subscriptionRadio.checked = true;
-        }
-    }
+    if (!savedData) return;
+    
+    const data = JSON.parse(savedData);
+    
+    // Populate personal fields
+    document.getElementById('fullName').value = data.fullName || '';
+    document.getElementById('phoneNumber').value = data.phoneNumber || '';
+    document.getElementById('companyName').value = data.companyName || '';
+    document.getElementById('staffId').value = data.staffId || '';
+    
+    populateVehicleFields(data);
+    populateParkingSelections(data);
 });
