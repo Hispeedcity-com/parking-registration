@@ -1,6 +1,6 @@
 // Review Page Handler
 window.addEventListener('DOMContentLoaded', function() {
-    const savedData = localStorage.getItem('currentApplication');
+    const savedData = sessionStorage.getItem('currentApplication');
     
     if (!savedData) {
         // No data found, redirect to registration

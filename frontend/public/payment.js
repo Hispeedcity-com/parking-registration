@@ -1,15 +1,20 @@
 // Payment Page Handler
 let uploadedReceipt = null;
 
-window.addEventListener('DOMContentLoaded', function() {
-    const savedData = localStorage.getItem('currentApplication');
-    
+function getCurrentApplication() {
+    const savedData = sessionStorage.getItem('currentApplication');
     if (!savedData) {
         window.location.href = 'registration.html';
+        return null;
+    }
+    return JSON.parse(savedData);
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+    const data = getCurrentApplication();
+    if (!data) {
         return;
     }
-    
-    const data = JSON.parse(savedData);
     document.getElementById('paymentAmount').textContent = `RM ${data.totalAmount}`;
     
     // Upload area click handler
@@ -65,29 +70,22 @@ window.addEventListener('DOMContentLoaded', function() {
             alert('Please upload a payment receipt before submitting');
             return;
         }
-        
-        // Save receipt with application data
-        data.receiptImage = uploadedReceipt;
-        data.submissionDate = new Date().toISOString();
-        data.status = 'Pending';
-        data.read = false;
-        
-        // Generate reference number
-        let applications = JSON.parse(localStorage.getItem('applications') || '[]');
-        const referenceNumber = `SP-2026-${String(applications.length + 1).padStart(6, '0')}`;
-        data.referenceNumber = referenceNumber;
-        
-        // Save to applications list
-        applications.push(data);
-        localStorage.setItem('applications', JSON.stringify(applications));
-        
-        // Save current reference for success page
-        localStorage.setItem('lastSubmission', referenceNumber);
-        
-        // Clear current application
-        localStorage.removeItem('currentApplication');
-        
-        // Navigate to success page
-        window.location.href = 'success.html';
+
+        const submitApplication = async () => {
+            try {
+                const formData = new FormData();
+                formData.append('applicationData', JSON.stringify(data));
+                formData.append('receipt', receiptUpload.files[0]);
+
+                const result = await requestFormData('/applications', formData);
+                sessionStorage.removeItem('currentApplication');
+                sessionStorage.setItem('lastSubmission', JSON.stringify(result));
+                window.location.href = 'success.html';
+            } catch (error) {
+                alert(error.message);
+            }
+        };
+
+        submitApplication();
     });
 });

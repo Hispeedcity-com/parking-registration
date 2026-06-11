@@ -229,9 +229,7 @@ document.getElementById('registrationForm').addEventListener('submit', function(
         formData.vehicles = vehicles;
         formData.parkingType = parkingSelections.parkingType;
         formData.subscriptionPeriod = parkingSelections.subscriptionPeriod;
-        formData.totalAmount = calculateTotalAmount();
-        
-        localStorage.setItem('currentApplication', JSON.stringify(formData));
+        sessionStorage.setItem('currentApplication', JSON.stringify(formData));
         window.location.href = 'review.html';
     } catch (error) {
         alert(error.message);
@@ -276,7 +274,7 @@ function populateParkingSelections(data) {
 
 // Load existing data if returning from review page
 window.addEventListener('DOMContentLoaded', function() {
-    const savedData = localStorage.getItem('currentApplication');
+    const savedData = sessionStorage.getItem('currentApplication');
     if (!savedData) return;
     
     const data = JSON.parse(savedData);
