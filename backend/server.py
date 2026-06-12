@@ -11,6 +11,7 @@ from typing import Any, Optional
 import bcrypt
 import cloudinary
 import cloudinary.uploader
+import certifi
 import jwt
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -36,7 +37,7 @@ cloudinary.config(
     secure=True,
 )
 
-client = AsyncIOMotorClient(MONGO_URL)
+client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=certifi.where())
 db = client[DB_NAME]
 
 app = FastAPI(title="Hi Speed City Smart Parking API")
@@ -711,13 +712,16 @@ async def get_application_by_reference(reference_number: str):
 
 @app.on_event('startup')
 async def startup_event():
-    admin_count = await db.admins.count_documents({})
-    if admin_count == 0:
-        await db.admins.insert_one({
-            'username': ADMIN_USERNAME,
-            'passwordHash': hash_password(ADMIN_PASSWORD).decode('utf-8'),
-            'createdAt': datetime.now(timezone.utc),
-        })
+    try:
+        admin_count = await db.admins.count_documents({})
+        if admin_count == 0:
+            await db.admins.insert_one({
+                'username': ADMIN_USERNAME,
+                'passwordHash': hash_password(ADMIN_PASSWORD).decode('utf-8'),
+                'createdAt': datetime.now(timezone.utc),
+            })
+    except Exception as exc:
+        print(f'Application startup warning: database initialization skipped: {exc}')
 
 
 @app.on_event('shutdown')
