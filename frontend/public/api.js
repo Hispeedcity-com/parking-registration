@@ -1,4 +1,4 @@
-const API_BASE_URL = window.__API_BASE_URL__ || 'http://localhost:5000/api';
+const API_BASE_URL = window.__API_BASE_URL__ || 'https://hispeedcity-backend-635388135964.us-central1.run.app/api';
 
 function getAuthToken() {
     return sessionStorage.getItem('adminToken');
