@@ -34,13 +34,15 @@ window.addEventListener('DOMContentLoaded', function() {
         if (file) {
             // Validate file size (5MB max)
             if (file.size > 5 * 1024 * 1024) {
-                alert('File size must be less than 5MB');
+                showAppMessage('File size must be less than 5MB.', 'warning');
+                receiptUpload.value = '';
                 return;
             }
             
             // Validate file type
             if (!file.type.match('image.*')) {
-                alert('Please upload an image file');
+                showAppMessage('Please upload an image file.', 'warning');
+                receiptUpload.value = '';
                 return;
             }
             
@@ -67,22 +69,26 @@ window.addEventListener('DOMContentLoaded', function() {
     // Submit button handler
     document.getElementById('submitBtn').addEventListener('click', function() {
         if (!uploadedReceipt) {
-            alert('Please upload a payment receipt before submitting');
+            showAppMessage('Please upload a payment receipt before submitting.', 'warning');
             return;
         }
 
         const submitApplication = async () => {
+            setButtonLoading(this, true, 'Submitting...');
             try {
                 const formData = new FormData();
                 formData.append('applicationData', JSON.stringify(data));
                 formData.append('receipt', receiptUpload.files[0]);
 
-                const result = await requestFormData('/applications', formData);
+                const result = await requestFormData('/applications', formData, {
+                    loadingMessage: 'Submitting your application...'
+                });
                 sessionStorage.removeItem('currentApplication');
                 sessionStorage.setItem('lastSubmission', JSON.stringify(result));
                 window.location.href = 'success.html';
             } catch (error) {
-                alert(error.message);
+                showAppMessage(error.message, 'error', 'Submission failed');
+                setButtonLoading(this, false);
             }
         };
 

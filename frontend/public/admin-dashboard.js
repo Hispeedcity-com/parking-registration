@@ -1,6 +1,6 @@
 // Admin Dashboard Handler
 window.addEventListener('DOMContentLoaded', function() {
-    requestJson('/admin/dashboard/stats')
+    requestJson('/admin/dashboard/stats', { loadingMessage: 'Loading dashboard...' })
         .then(stats => {
             document.getElementById('totalApplications').textContent = stats.totalApplications;
             document.getElementById('pendingCount').textContent = stats.pendingApplications;
@@ -8,7 +8,9 @@ window.addEventListener('DOMContentLoaded', function() {
             document.getElementById('rejectedCount').textContent = stats.rejectedApplications;
         })
         .catch(error => {
-            alert(error.message);
-            window.location.href = 'admin-login.html';
+            showAppMessage(error.message, 'error', 'Dashboard unavailable');
+            setTimeout(() => {
+                window.location.href = 'admin-login.html';
+            }, 1400);
         });
 });

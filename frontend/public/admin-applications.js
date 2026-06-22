@@ -2,7 +2,7 @@
 window.addEventListener('DOMContentLoaded', function() {
     const applicationsList = document.getElementById('applicationsList');
 
-    requestJson('/admin/applications')
+    requestJson('/admin/applications', { loadingMessage: 'Loading applications...' })
         .then(result => {
             const applications = result.applications || [];
             if (applications.length === 0) {
@@ -47,7 +47,8 @@ window.addEventListener('DOMContentLoaded', function() {
             });
         })
         .catch(error => {
-            applicationsList.innerHTML = `<div style="text-align:center;padding:40px;color:#b91c1c;">${error.message}</div>`;
+            showAppMessage(error.message, 'error', 'Applications unavailable');
+            applicationsList.innerHTML = `<div style="text-align:center;padding:40px;color:#b91c1c;">${escapeHtml(error.message)}</div>`;
         });
 });
 

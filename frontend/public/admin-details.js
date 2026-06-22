@@ -9,7 +9,7 @@ window.addEventListener('DOMContentLoaded', function() {
     
     const detailsContainer = document.getElementById('detailsContainer');
 
-    requestJson(`/admin/applications/${encodeURIComponent(referenceNumber)}`)
+    requestJson(`/admin/applications/${encodeURIComponent(referenceNumber)}`, { loadingMessage: 'Loading application details...' })
         .then(result => {
             const app = result.application;
             const date = new Date(app.submittedAt);
@@ -72,30 +72,36 @@ window.addEventListener('DOMContentLoaded', function() {
                 actionButtons.style.display = 'flex';
 
                 document.getElementById('approveBtn').addEventListener('click', function() {
-                    updateApplicationStatus(referenceNumber, 'Approved');
+                    updateApplicationStatus(referenceNumber, 'Approved', this);
                 });
 
                 document.getElementById('rejectBtn').addEventListener('click', function() {
-                    updateApplicationStatus(referenceNumber, 'Rejected');
+                    updateApplicationStatus(referenceNumber, 'Rejected', this);
                 });
             }
         })
         .catch(error => {
-            detailsContainer.innerHTML = `<div style="color:#b91c1c;padding:24px;">${error.message}</div>`;
+            showAppMessage(error.message, 'error', 'Application unavailable');
+            detailsContainer.innerHTML = `<div style="color:#b91c1c;padding:24px;">${escapeHtml(error.message)}</div>`;
         });
 });
 
-function updateApplicationStatus(referenceNumber, newStatus) {
-    requestJson(`/admin/applications/${encodeURIComponent(referenceNumber)}/status`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
-    })
-        .then(() => {
-            alert(`Application ${newStatus.toLowerCase()} successfully!`);
-            window.location.href = 'admin-applications.html';
-        })
-        .catch(error => {
-            alert(error.message);
+async function updateApplicationStatus(referenceNumber, newStatus, button) {
+    setButtonLoading(button, true, `${newStatus}...`);
+
+    try {
+        await requestJson(`/admin/applications/${encodeURIComponent(referenceNumber)}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus }),
+            loadingMessage: `Updating application...`
         });
+        showAppMessage(`Application ${newStatus.toLowerCase()} successfully.`, 'success');
+        setTimeout(() => {
+            window.location.href = 'admin-applications.html';
+        }, 900);
+    } catch (error) {
+        showAppMessage(error.message, 'error');
+        setButtonLoading(button, false);
+    }
 }

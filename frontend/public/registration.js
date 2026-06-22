@@ -232,7 +232,7 @@ document.getElementById('registrationForm').addEventListener('submit', function(
         sessionStorage.setItem('currentApplication', JSON.stringify(formData));
         window.location.href = 'review.html';
     } catch (error) {
-        alert(error.message);
+        showAppMessage(error.message, 'warning');
     }
 });
 

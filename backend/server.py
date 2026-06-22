@@ -40,10 +40,14 @@ cloudinary.config(
 client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=certifi.where())
 db = client[DB_NAME]
 
+
+def parse_cors_origins(raw_value: str) -> list[str]:
+    return [origin.strip().strip('"').strip("'") for origin in raw_value.split(',') if origin.strip()]
+
 app = FastAPI(title="Hi Speed City Smart Parking API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in os.environ.get("CORS_ORIGIN", "*").split(",")],
+    allow_origins=parse_cors_origins(os.environ.get("CORS_ORIGIN", "*")),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -413,10 +417,12 @@ from io import BytesIO
 import os
 import uuid
 import bcrypt
+import certifi
 import jwt
 import cloudinary
 import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
+from pymongo.errors import PyMongoError
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -425,11 +431,17 @@ MONGO_URL = os.environ.get('MONGODB_URI') or os.environ.get('MONGO_URL')
 if not MONGO_URL:
     raise RuntimeError('MONGODB_URI is required')
 
+
+def parse_cors_origins(raw_value: str) -> list[str]:
+    return [origin.strip().strip('"').strip("'") for origin in raw_value.split(',') if origin.strip()]
+
+
 DB_NAME = os.environ.get('DB_NAME', 'hispeedcity')
 JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me')
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'Hispeedcity')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Hispeedcity2026@')
-CORS_ORIGINS = [origin.strip() for origin in os.environ.get('CORS_ORIGIN', os.environ.get('CORS_ORIGINS', '*')).split(',') if origin.strip()]
+CORS_ORIGINS = parse_cors_origins(os.environ.get('CORS_ORIGIN', os.environ.get('CORS_ORIGINS', '*')))
+MONGO_TIMEOUT_MS = int(os.environ.get('MONGO_TIMEOUT_MS', '5000'))
 
 cloudinary.config(
     cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
@@ -438,7 +450,13 @@ cloudinary.config(
     secure=True,
 )
 
-client = AsyncIOMotorClient(MONGO_URL)
+client = AsyncIOMotorClient(
+    MONGO_URL,
+    tlsCAFile=certifi.where(),
+    serverSelectionTimeoutMS=MONGO_TIMEOUT_MS,
+    connectTimeoutMS=MONGO_TIMEOUT_MS,
+    socketTimeoutMS=MONGO_TIMEOUT_MS,
+)
 db = client[DB_NAME]
 
 app = FastAPI()
@@ -522,9 +540,22 @@ async def health():
     return {'message': 'ok'}
 
 
+@api_router.get('/health/db')
+async def database_health():
+    try:
+        await db.command('ping')
+    except PyMongoError as exc:
+        raise HTTPException(status_code=503, detail='Database is not reachable') from exc
+    return {'message': 'database ok'}
+
+
 @api_router.post('/admin/login')
 async def admin_login(payload: AdminLoginRequest):
-    admin = await db.admins.find_one({'username': payload.username})
+    try:
+        admin = await db.admins.find_one({'username': payload.username})
+    except PyMongoError as exc:
+        raise HTTPException(status_code=503, detail='Database is not reachable') from exc
+
     if not admin or not verify_password(payload.password, admin['passwordHash']):
         raise HTTPException(status_code=401, detail='Invalid credentials')
 
