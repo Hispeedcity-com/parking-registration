@@ -37,7 +37,7 @@ cloudinary.config(
     secure=True,
 )
 
-client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=certifi.where())
+client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=certifi.where() if 'localhost' not in MONGO_URL else None)
 db = client[DB_NAME]
 
 
@@ -82,8 +82,9 @@ class ApplicationStatus(str, Enum):
 class ApplicationBase(BaseModel):
     fullName: str
     phoneNumber: str
+    email: EmailStr
     companyName: str
-    staffId: str
+    staffId: Optional[str] = ""
     vehicleNumber: str
     vehicleModel: str
     vehicleType: str
@@ -452,7 +453,7 @@ cloudinary.config(
 
 client = AsyncIOMotorClient(
     MONGO_URL,
-    tlsCAFile=certifi.where(),
+    tlsCAFile=certifi.where() if 'localhost' not in MONGO_URL else None,
     serverSelectionTimeoutMS=MONGO_TIMEOUT_MS,
     connectTimeoutMS=MONGO_TIMEOUT_MS,
     socketTimeoutMS=MONGO_TIMEOUT_MS,
@@ -667,6 +668,7 @@ async def create_application(
     receipt: UploadFile = File(...),
 ):
     import json
+    import re
 
     try:
         payload = json.loads(applicationData)
@@ -679,11 +681,20 @@ async def create_application(
 
     first_vehicle = vehicles[0]
     if not all([
-        payload.get('fullName'), payload.get('phoneNumber'), payload.get('companyName'), payload.get('staffId'),
+        payload.get('fullName'), payload.get('phoneNumber'), payload.get('companyName'),
         first_vehicle.get('vehicleNumber'), first_vehicle.get('vehicleModel'), first_vehicle.get('vehicleType'), first_vehicle.get('vehicleColor'),
         payload.get('parkingType'), payload.get('subscriptionPeriod')
     ]):
         raise HTTPException(status_code=400, detail='Missing required fields')
+
+    # Email validation
+    email_raw = payload.get('email')
+    if not email_raw or not str(email_raw).strip():
+        raise HTTPException(status_code=400, detail='Customer email is required')
+    email_clean = str(email_raw).strip()
+    email_regex = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    if not email_regex.match(email_clean):
+        raise HTTPException(status_code=400, detail='Invalid email format')
 
     receipt_url = await upload_receipt(receipt)
 
@@ -708,8 +719,9 @@ async def create_application(
         'referenceNumber': reference_number,
         'fullName': payload.get('fullName'),
         'phoneNumber': payload.get('phoneNumber'),
+        'email': email_clean,
         'companyName': payload.get('companyName'),
-        'staffId': payload.get('staffId'),
+        'staffId': (payload.get('staffId') or '').strip(),
         'vehicleNumber': first_vehicle.get('vehicleNumber'),
         'vehicleModel': first_vehicle.get('vehicleModel'),
         'vehicleType': first_vehicle.get('vehicleType'),
