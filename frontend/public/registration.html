@@ -40,14 +40,18 @@
                                 <input type="tel" id="phoneNumber" name="phoneNumber" required data-testid="phone-input">
                             </div>
                             <div class="form-group">
-                                <label for="companyName">Company Name *</label>
-                                <input type="text" id="companyName" name="companyName" required data-testid="company-input">
+                                <label for="email">Customer Email *</label>
+                                <input type="email" id="email" name="email" required placeholder="name@example.com" data-testid="email-input">
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="staffId">Staff ID *</label>
-                                <input type="text" id="staffId" name="staffId" required data-testid="staff-id-input">
+                                <label for="companyName">Company Name *</label>
+                                <input type="text" id="companyName" name="companyName" required data-testid="company-input">
+                            </div>
+                            <div class="form-group">
+                                <label for="staffId">Staff ID</label>
+                                <input type="text" id="staffId" name="staffId" maxlength="20" style="max-width:220px;" data-testid="staff-id-input">
                             </div>
                         </div>
                     </div>

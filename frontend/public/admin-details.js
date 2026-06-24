@@ -42,8 +42,9 @@ window.addEventListener('DOMContentLoaded', function() {
                     <h2>Applicant Information</h2>
                     <div class="detail-row"><span class="detail-label">Full Name:</span><span class="detail-value" data-testid="detail-name">${app.fullName}</span></div>
                     <div class="detail-row"><span class="detail-label">Phone Number:</span><span class="detail-value">${app.phoneNumber}</span></div>
+                    <div class="detail-row"><span class="detail-label">Customer Email:</span><span class="detail-value" data-testid="detail-email">${app.email || '-'}</span></div>
                     <div class="detail-row"><span class="detail-label">Company Name:</span><span class="detail-value">${app.companyName}</span></div>
-                    <div class="detail-row"><span class="detail-label">Staff ID:</span><span class="detail-value">${app.staffId}</span></div>
+                    <div class="detail-row"><span class="detail-label">Staff ID:</span><span class="detail-value">${app.staffId || '-'}</span></div>
                 </div>
 
                 <div class="details-section">
