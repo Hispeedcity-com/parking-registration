@@ -11,16 +11,7 @@ window.addEventListener('DOMContentLoaded', function() {
             }
 
             applications.forEach((app, index) => {
-                const date = new Date(app.submittedAt);
-                const formattedDate = date.toLocaleDateString('en-MY', {
-                    day: '2-digit',
-                    month: 'short',
-                    year: 'numeric'
-                });
-                const formattedTime = date.toLocaleTimeString('en-MY', {
-                    hour: '2-digit',
-                    minute: '2-digit'
-                });
+                const formattedDateTime = formatDateTime(app.submittedAt);
 
                 const card = document.createElement('div');
                 card.className = 'application-card';
@@ -38,7 +29,7 @@ window.addEventListener('DOMContentLoaded', function() {
                         <span class="status-badge ${app.status.toLowerCase()}" data-testid="status-${index}">${app.status}</span>
                     </div>
                     <div class="application-meta">
-                        <span class="date-time">${formattedDate} at ${formattedTime}</span>
+                        <span class="date-time" data-testid="card-datetime-${index}">${formattedDateTime}</span>
                         <span class="date-time">Ref: ${app.referenceNumber}</span>
                     </div>
                 `;

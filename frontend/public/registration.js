@@ -52,6 +52,68 @@ function createCheckboxOption(name, value, testId, labelText) {
     return label;
 }
 
+// Predefined options for dropdowns
+const VEHICLE_MODELS = [
+    'Perodua Myvi',
+    'Perodua Axia',
+    'Perodua Bezza',
+    'Perodua Alza',
+    'Proton Saga',
+    'Proton X50',
+    'Proton X70',
+    'Honda City',
+    'Honda HR-V',
+    'Toyota Vios',
+    'Toyota Hilux',
+    'Other'
+];
+
+const VEHICLE_COLORS = [
+    'White', 'Black', 'Silver', 'Grey', 'Red',
+    'Blue', 'Green', 'Yellow', 'Brown', 'Gold',
+    'Orange', 'Other'
+];
+
+// Helper function to create a select form group
+function createSelectGroup(labelText, selectConfig, options) {
+    const formGroup = document.createElement('div');
+    formGroup.className = 'form-group';
+
+    const label = document.createElement('label');
+    label.setAttribute('for', selectConfig.id);
+    label.textContent = labelText;
+
+    const select = document.createElement('select');
+    select.className = 'form-select';
+    Object.keys(selectConfig).forEach(key => {
+        if (key === 'dataset') {
+            Object.keys(selectConfig.dataset).forEach(dataKey => {
+                select.dataset[dataKey] = selectConfig.dataset[dataKey];
+            });
+        } else {
+            select.setAttribute(key, selectConfig[key]);
+        }
+    });
+
+    const placeholderOpt = document.createElement('option');
+    placeholderOpt.value = '';
+    placeholderOpt.textContent = selectConfig.placeholder || 'Select an option';
+    placeholderOpt.disabled = true;
+    placeholderOpt.selected = true;
+    select.appendChild(placeholderOpt);
+
+    options.forEach(opt => {
+        const option = document.createElement('option');
+        option.value = opt;
+        option.textContent = opt;
+        select.appendChild(option);
+    });
+
+    formGroup.appendChild(label);
+    formGroup.appendChild(select);
+    return formGroup;
+}
+
 // Helper function to create vehicle section
 function createVehicleSection(index) {
     const section = document.createElement('div');
@@ -74,15 +136,14 @@ function createVehicleSection(index) {
         placeholder: 'e.g., ABC 1234',
         dataset: { testid: `vehicle-number-input-${index}` }
     }));
-    
-    row1.appendChild(createFormGroup('Vehicle Model *', {
-        type: 'text',
+
+    row1.appendChild(createSelectGroup('Vehicle Model *', {
         id: `vehicleModel${index}`,
         name: `vehicleModel${index}`,
         required: true,
-        placeholder: 'e.g., Toyota Camry',
-        dataset: { testid: `vehicle-model-input-${index}` }
-    }));
+        placeholder: 'Select vehicle model',
+        dataset: { testid: `vehicle-model-select-${index}` }
+    }, VEHICLE_MODELS));
     
     section.appendChild(row1);
     
@@ -122,20 +183,20 @@ function createVehicleSection(index) {
     row2.appendChild(typeGroup);
     section.appendChild(row2);
     
-    // Third row: Vehicle Color
+    // Third row: Vehicle Color (dropdown)
     const row3 = document.createElement('div');
     row3.className = 'form-row';
-    
-    row3.appendChild(createFormGroup('Vehicle Color *', {
-        type: 'text',
+
+    row3.appendChild(createSelectGroup('Vehicle Color *', {
         id: `vehicleColor${index}`,
         name: `vehicleColor${index}`,
         required: true,
-        dataset: { testid: `vehicle-color-input-${index}` }
-    }));
-    
+        placeholder: 'Select vehicle color',
+        dataset: { testid: `vehicle-color-select-${index}` }
+    }, VEHICLE_COLORS));
+
     section.appendChild(row3);
-    
+
     return section;
 }
 

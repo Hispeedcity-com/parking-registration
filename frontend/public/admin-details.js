@@ -12,14 +12,25 @@ window.addEventListener('DOMContentLoaded', function() {
     requestJson(`/admin/applications/${encodeURIComponent(referenceNumber)}`, { loadingMessage: 'Loading application details...' })
         .then(result => {
             const app = result.application;
-            const date = new Date(app.submittedAt);
-            const formattedDate = date.toLocaleDateString('en-MY', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            const formattedDate = formatDateTime(app.submittedAt);
+
+            // Wire admin download button (full PDF using shared util)
+            const adminDownloadBtn = document.getElementById('adminDownloadFormBtn');
+            if (adminDownloadBtn) {
+                adminDownloadBtn.addEventListener('click', async function() {
+                    const original = adminDownloadBtn.textContent;
+                    adminDownloadBtn.disabled = true;
+                    adminDownloadBtn.textContent = 'Preparing PDF...';
+                    try {
+                        await downloadSubmissionPdf(app);
+                    } catch (e) {
+                        showAppMessage('Could not generate PDF: ' + e.message, 'error');
+                    } finally {
+                        adminDownloadBtn.disabled = false;
+                        adminDownloadBtn.textContent = original;
+                    }
+                });
+            }
 
             detailsContainer.innerHTML = `
                 <div class="details-section">
