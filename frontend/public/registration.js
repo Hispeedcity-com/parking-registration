@@ -1,6 +1,45 @@
 // Registration Form Handler
 let numberOfVehicles = 0;
 
+const APP_TYPE_LABELS = {
+    registration: 'New Registration',
+    deregistration: 'Deregistration',
+    edit_remove: 'Edit / Remove Vehicle'
+};
+
+function getApplicationType() {
+    const stored = sessionStorage.getItem('applicationType');
+    if (stored && APP_TYPE_LABELS[stored]) return stored;
+    return null;
+}
+
+function applyApplicationType() {
+    const type = getApplicationType();
+    if (!type) {
+        // No selection yet — send user back to choose application type.
+        window.location.href = 'application-type.html';
+        return null;
+    }
+    const banner = document.getElementById('applicationTypeBanner');
+    const label = document.getElementById('applicationTypeLabel');
+    if (banner && label) {
+        label.textContent = APP_TYPE_LABELS[type];
+        banner.style.display = 'block';
+    }
+    const remarksSection = document.getElementById('remarksSection');
+    const remarksField = document.getElementById('remarks');
+    if (remarksSection && remarksField) {
+        if (type === 'edit_remove') {
+            remarksSection.style.display = 'block';
+            remarksField.setAttribute('required', 'required');
+        } else {
+            remarksSection.style.display = 'none';
+            remarksField.removeAttribute('required');
+        }
+    }
+    return type;
+}
+
 // Listen for number of cars selection
 document.getElementById('numberOfCars').addEventListener('change', function(e) {
     numberOfVehicles = parseInt(e.target.value);
@@ -292,15 +331,31 @@ function getPersonalInformation() {
 
 document.getElementById('registrationForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    
+
     try {
+        const applicationType = getApplicationType();
+        if (!applicationType) {
+            window.location.href = 'application-type.html';
+            return;
+        }
+
         const formData = getPersonalInformation();
         const parkingSelections = validateParkingSelections();
         const vehicles = collectVehicleData();
-        
+
         formData.vehicles = vehicles;
         formData.parkingType = parkingSelections.parkingType;
         formData.subscriptionPeriod = parkingSelections.subscriptionPeriod;
+        formData.applicationType = applicationType;
+        formData.paymentRequired = applicationType === 'registration';
+
+        const remarksField = document.getElementById('remarks');
+        const remarksValue = remarksField ? (remarksField.value || '').trim() : '';
+        if (applicationType === 'edit_remove' && !remarksValue) {
+            throw new Error('Please enter Remarks / Notes for your Edit / Remove Vehicle request.');
+        }
+        formData.remarks = remarksValue;
+
         sessionStorage.setItem('currentApplication', JSON.stringify(formData));
         window.location.href = 'review.html';
     } catch (error) {
@@ -346,18 +401,24 @@ function populateParkingSelections(data) {
 
 // Load existing data if returning from review page
 window.addEventListener('DOMContentLoaded', function() {
+    // Apply application type UX (banner + remarks visibility). Redirects if type is missing.
+    if (!applyApplicationType()) return;
+
     const savedData = sessionStorage.getItem('currentApplication');
     if (!savedData) return;
-    
+
     const data = JSON.parse(savedData);
-    
+
     // Populate personal fields
     document.getElementById('fullName').value = data.fullName || '';
     document.getElementById('phoneNumber').value = data.phoneNumber || '';
     document.getElementById('email').value = data.email || '';
     document.getElementById('companyName').value = data.companyName || '';
     document.getElementById('staffId').value = data.staffId || '';
-    
+
+    const remarksField = document.getElementById('remarks');
+    if (remarksField) remarksField.value = data.remarks || '';
+
     populateVehicleFields(data);
     populateParkingSelections(data);
 });

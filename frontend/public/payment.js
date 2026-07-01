@@ -15,6 +15,11 @@ window.addEventListener('DOMContentLoaded', function() {
     if (!data) {
         return;
     }
+    // Guard: payment page is only for New Registration flow.
+    if (data.applicationType && data.applicationType !== 'registration') {
+        window.location.href = 'review.html';
+        return;
+    }
     document.getElementById('paymentAmount').textContent = `RM ${data.totalAmount}`;
     
     // Upload area click handler

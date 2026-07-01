@@ -75,6 +75,13 @@ async function downloadSubmissionPdf(app) {
 
     const submittedAt = app.submittedAt || app.submissionDate || new Date().toISOString();
 
+    const appTypeLabels = {
+        registration: 'New Registration',
+        deregistration: 'Deregistration',
+        edit_remove: 'Edit / Remove Vehicle'
+    };
+    const appTypeLabel = appTypeLabels[app.applicationType] || 'New Registration';
+
     const vehicles = (app.vehicles && app.vehicles.length) ? app.vehicles : [{
         vehicleNumber: app.vehicleNumber || '-',
         vehicleModel: app.vehicleModel || '-',
@@ -84,6 +91,7 @@ async function downloadSubmissionPdf(app) {
 
     const referenceRow = [
         ['Reference Number', app.referenceNumber || '-'],
+        ['Application Type', appTypeLabel],
         ['Application Status', app.status || 'Pending'],
         ['Submission Date', formatDateTime(submittedAt)]
     ];
@@ -138,6 +146,10 @@ async function downloadSubmissionPdf(app) {
     });
 
     renderSection('Parking Information', parkingRows);
+
+    if (app.applicationType === 'edit_remove' && app.remarks) {
+        renderSection('Remarks / Notes', [['Remarks', app.remarks]]);
+    }
 
     // Footer
     if (y > 270) { doc.addPage(); y = 20; }

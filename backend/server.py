@@ -665,7 +665,7 @@ async def upload_receipt(file: UploadFile) -> str:
 @api_router.post('/applications', response_model=ApplicationCreateResponse)
 async def create_application(
     applicationData: str = Form(...),
-    receipt: UploadFile = File(...),
+    receipt: Optional[UploadFile] = File(None),
 ):
     import json
     import re
@@ -674,6 +674,12 @@ async def create_application(
         payload = json.loads(applicationData)
     except Exception:
         raise HTTPException(status_code=400, detail='Invalid application data')
+
+    # Application type determines whether payment/receipt is required
+    application_type = (payload.get('applicationType') or 'registration').strip().lower()
+    if application_type not in {'registration', 'deregistration', 'edit_remove'}:
+        application_type = 'registration'
+    payment_required = application_type == 'registration'
 
     vehicles = payload.get('vehicles') or []
     if not vehicles:
@@ -696,7 +702,18 @@ async def create_application(
     if not email_regex.match(email_clean):
         raise HTTPException(status_code=400, detail='Invalid email format')
 
-    receipt_url = await upload_receipt(receipt)
+    # Remarks are required for edit_remove
+    remarks_raw = payload.get('remarks') or ''
+    remarks_clean = str(remarks_raw).strip()
+    if application_type == 'edit_remove' and not remarks_clean:
+        raise HTTPException(status_code=400, detail='Remarks / Notes are required for Edit / Remove Vehicle requests')
+
+    # Receipt is only required for paid (registration) applications
+    receipt_url = ''
+    if payment_required:
+        if receipt is None:
+            raise HTTPException(status_code=400, detail='Payment receipt is required')
+        receipt_url = await upload_receipt(receipt)
 
     year = datetime.now(timezone.utc).year
     counter_id = f'applications-{year}'
@@ -717,6 +734,9 @@ async def create_application(
 
     document = {
         'referenceNumber': reference_number,
+        'applicationType': application_type,
+        'paymentRequired': payment_required,
+        'remarks': remarks_clean,
         'fullName': payload.get('fullName'),
         'phoneNumber': payload.get('phoneNumber'),
         'email': email_clean,
