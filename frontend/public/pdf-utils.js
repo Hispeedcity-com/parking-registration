@@ -6,31 +6,48 @@ function pad2(n) {
     return String(n).padStart(2, '0');
 }
 
+function getMalaysiaDateParts(value) {
+    const d = (value instanceof Date) ? value : new Date(value);
+    if (isNaN(d.getTime())) return null;
+
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kuala_Lumpur',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    });
+
+    const parts = formatter.formatToParts(d).reduce((accumulator, part) => {
+        if (part.type !== 'literal') accumulator[part.type] = part.value;
+        return accumulator;
+    }, {});
+
+    return parts;
+}
+
 function formatDateTime(value) {
     if (!value) return '-';
-    const d = (value instanceof Date) ? value : new Date(value);
-    if (isNaN(d.getTime())) return '-';
-    const day = pad2(d.getDate());
-    const month = pad2(d.getMonth() + 1);
-    const year = d.getFullYear();
-    const hours = pad2(d.getHours());
-    const minutes = pad2(d.getMinutes());
-    const seconds = pad2(d.getSeconds());
-    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    const parts = getMalaysiaDateParts(value);
+    if (!parts) return '-';
+    return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 function formatDateOnly(value) {
     if (!value) return '-';
-    const d = (value instanceof Date) ? value : new Date(value);
-    if (isNaN(d.getTime())) return '-';
-    return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const parts = getMalaysiaDateParts(value);
+    if (!parts) return '-';
+    return `${parts.day}/${parts.month}/${parts.year}`;
 }
 
 function formatTimeOnly(value) {
     if (!value) return '-';
-    const d = (value instanceof Date) ? value : new Date(value);
-    if (isNaN(d.getTime())) return '-';
-    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    const parts = getMalaysiaDateParts(value);
+    if (!parts) return '-';
+    return `${parts.hour}:${parts.minute}:${parts.second}`;
 }
 
 function ensureJsPdfLoaded() {

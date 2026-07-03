@@ -352,59 +352,6 @@ async def get_public_application(reference_number: str) -> dict[str, Any]:
     return application
 
 
-@app.post("/api/applications")
-async def create_application(
-    applicationData: str = Form(...),
-    receipt: UploadFile = File(...),
-) -> dict[str, Any]:
-    import json
-
-    payload = json.loads(applicationData)
-    vehicles = normalize_vehicles(payload)
-    if not vehicles:
-        raise HTTPException(status_code=400, detail="At least one vehicle is required")
-
-    required_fields = ["fullName", "phoneNumber", "companyName", "staffId", "parkingType", "subscriptionPeriod"]
-    for field_name in required_fields:
-        if not payload.get(field_name):
-            raise HTTPException(status_code=400, detail=f"{field_name} is required")
-
-    receipt_url = await upload_receipt_to_cloudinary(receipt)
-    reference_number = await next_reference_number()
-
-    vehicle0 = vehicles[0]
-    total_amount = int(payload.get("totalAmount") or 0)
-    if total_amount <= 0:
-        total_amount = calculate_total_amount(payload["parkingType"], payload["subscriptionPeriod"], len(vehicles))
-
-    application_doc = {
-        "referenceNumber": reference_number,
-        "fullName": payload["fullName"],
-        "phoneNumber": payload["phoneNumber"],
-        "companyName": payload["companyName"],
-        "staffId": payload["staffId"],
-        "vehicleNumber": vehicle0.get("vehicleNumber", ""),
-        "vehicleModel": vehicle0.get("vehicleModel", ""),
-        "vehicleType": vehicle0.get("vehicleType", ""),
-        "vehicleColor": vehicle0.get("vehicleColor", ""),
-        "vehicles": vehicles,
-        "parkingType": payload["parkingType"],
-        "subscriptionPeriod": payload["subscriptionPeriod"],
-        "receiptUrl": receipt_url,
-        "status": "Pending",
-        "submittedAt": now_utc(),
-        "updatedAt": now_utc(),
-        "totalAmount": total_amount,
-    }
-
-    await db.applications.insert_one(application_doc)
-
-    return {
-        "message": "Application submitted successfully",
-        "referenceNumber": reference_number,
-        "status": "Pending",
-        "submittedAt": application_doc["submittedAt"],
-    }
 from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Header, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
