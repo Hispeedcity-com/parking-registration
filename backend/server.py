@@ -1,89 +1,803 @@
-from fastapi import FastAPI, APIRouter
-from dotenv import load_dotenv
-from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from __future__ import annotations
+
 import os
-import logging
-from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
 import uuid
 from datetime import datetime, timezone
+from enum import Enum
+from io import BytesIO
+from pathlib import Path
+from typing import Any, Optional
 
+import bcrypt
+import cloudinary
+import cloudinary.uploader
+import certifi
+import jwt
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+load_dotenv(ROOT_DIR / ".env")
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+MONGO_URL = os.environ.get("MONGO_URL") or os.environ["MONGODB_URI"]
+DB_NAME = os.environ["DB_NAME"]
+JWT_SECRET = os.environ["JWT_SECRET"]
+JWT_ALGORITHM = "HS256"
+DEFAULT_ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "Hispeedcity").strip()
+DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Hispeedcity2026@").strip()
 
-# Create the main app without a prefix
-app = FastAPI()
+cloudinary.config(
+    cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"],
+    api_key=os.environ["CLOUDINARY_API_KEY"],
+    api_secret=os.environ["CLOUDINARY_API_SECRET"],
+    secure=True,
+)
 
-# Create a router with the /api prefix
-api_router = APIRouter(prefix="/api")
+client = AsyncIOMotorClient(MONGO_URL, tlsCAFile=certifi.where() if 'localhost' not in MONGO_URL else None)
+db = client[DB_NAME]
 
 
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+def parse_cors_origins(raw_value: str) -> list[str]:
+    return [origin.strip().strip('"').strip("'") for origin in raw_value.split(',') if origin.strip()]
 
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
-
+app = FastAPI(title="Hi Speed City Smart Parking API")
 app.add_middleware(
     CORSMiddleware,
+    allow_origins=parse_cors_origins(os.environ.get("CORS_ORIGIN", "*")),
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+
+class StatusCheck(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    client_name: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class StatusCheckCreate(BaseModel):
+    client_name: str
+
+
+class VehicleIn(BaseModel):
+    vehicleNumber: str
+    vehicleModel: str
+    vehicleType: str
+    vehicleColor: str
+
+
+class ApplicationStatus(str, Enum):
+    pending = "Pending"
+    approved = "Approved"
+    rejected = "Rejected"
+
+
+class ApplicationBase(BaseModel):
+    fullName: str
+    phoneNumber: str
+    email: EmailStr
+    companyName: str
+    staffId: Optional[str] = ""
+    vehicleNumber: str
+    vehicleModel: str
+    vehicleType: str
+    vehicleColor: str
+    parkingType: str
+    subscriptionPeriod: str
+    totalAmount: int
+    vehicles: list[VehicleIn] = []
+
+
+class ApplicationOut(ApplicationBase):
+    model_config = ConfigDict(extra="ignore")
+
+    referenceNumber: str
+    receiptUrl: str
+    status: ApplicationStatus
+    submittedAt: datetime
+    updatedAt: datetime
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    currentPassword: str
+    newPassword: str
+    confirmNewPassword: str
+
+
+class StatusUpdateRequest(BaseModel):
+    status: ApplicationStatus
+
+
+def now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+
+
+def create_jwt(admin: dict[str, Any]) -> str:
+    payload = {
+        "sub": str(admin["_id"]),
+        "username": admin["username"],
+        "iat": int(now_utc().timestamp()),
+        "exp": int((now_utc().timestamp()) + 60 * 60 * 24 * 7),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+
+def decode_jwt_from_header(authorization: str | None) -> dict[str, Any]:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization token missing")
+
+    token = authorization.split(" ", 1)[1].strip()
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid or expired token") from exc
+
+
+async def get_current_admin(authorization: str | None = Header(default=None)) -> dict[str, Any]:
+    payload = decode_jwt_from_header(authorization)
+    admin_id: Any = payload["sub"]
+    try:
+        admin_id = ObjectId(admin_id)
+    except Exception:
+        pass
+    admin = await db.admins.find_one({"_id": admin_id}, {"passwordHash": 0})
+    if not admin:
+        raise HTTPException(status_code=401, detail="Admin not found")
+    return admin
+
+
+async def seed_default_admin() -> None:
+    existing_admin = await db.admins.find_one({"username": DEFAULT_ADMIN_USERNAME.lower()})
+    admin_doc = {
+        "username": DEFAULT_ADMIN_USERNAME.lower(),
+        "passwordHash": hash_password(DEFAULT_ADMIN_PASSWORD),
+        "createdAt": now_utc(),
+    }
+    if existing_admin:
+        await db.admins.update_one({"_id": existing_admin["_id"]}, {"$set": admin_doc})
+        return
+    await db.admins.insert_one(admin_doc)
+
+
+async def next_reference_number() -> str:
+    year = now_utc().year
+    counter_id = f"applications-{year}"
+    counter = await db.counters.find_one_and_update(
+        {"_id": counter_id},
+        {"$inc": {"seq": 1}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    seq = counter["seq"] if counter and "seq" in counter else 1
+    return f"SP-{year}-{seq:06d}"
+
+
+def normalize_vehicles(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    vehicles = payload.get("vehicles") or []
+    if vehicles:
+        return vehicles
+    if all(payload.get(key) for key in ["vehicleNumber", "vehicleModel", "vehicleType", "vehicleColor"]):
+        return [
+            {
+                "vehicleNumber": payload["vehicleNumber"],
+                "vehicleModel": payload["vehicleModel"],
+                "vehicleType": payload["vehicleType"],
+                "vehicleColor": payload["vehicleColor"],
+            }
+        ]
+    return []
+
+
+def calculate_total_amount(parking_type: str, subscription_period: str, vehicle_count: int) -> int:
+    parking_prices = {"Non Reserved": 150, "Reserved": 200, "Premium": 300}
+    multipliers = {"Monthly": 1, "Quarterly": 3, "Yearly": 12}
+    return parking_prices.get(parking_type, 0) * multipliers.get(subscription_period, 1) * max(vehicle_count, 1)
+
+
+async def upload_receipt_to_cloudinary(file: UploadFile) -> str:
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Receipt file is empty")
+    buffer = BytesIO(content)
+    result = cloudinary.uploader.upload(
+        buffer,
+        folder="hispeedcity/receipts",
+        resource_type="auto",
+    )
+    return result["secure_url"]
+
+
+@app.on_event("startup")
+async def startup_event() -> None:
+    await seed_default_admin()
+
 
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown_event() -> None:
     client.close()
+
+
+@app.get("/api/")
+async def root() -> dict[str, str]:
+    return {"message": "Hi Speed City API is running"}
+
+
+@app.get("/api/health")
+async def health() -> dict[str, str]:
+    return {"message": "ok"}
+
+
+@app.post("/api/status", response_model=StatusCheck)
+async def create_status_check(input: StatusCheckCreate) -> StatusCheck:
+    status_obj = StatusCheck(client_name=input.client_name)
+    doc = status_obj.model_dump()
+    doc["timestamp"] = doc["timestamp"].isoformat()
+    await db.status_checks.insert_one(doc)
+    return status_obj
+
+
+@app.get("/api/status", response_model=list[StatusCheck])
+async def get_status_checks() -> list[StatusCheck]:
+    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
+    for check in status_checks:
+        if isinstance(check.get("timestamp"), str):
+            check["timestamp"] = datetime.fromisoformat(check["timestamp"])
+    return status_checks
+
+
+@app.post("/api/admin/login")
+async def admin_login(request: AdminLoginRequest) -> dict[str, Any]:
+    admin = await db.admins.find_one({"username": request.username.lower().strip()})
+    if not admin or not verify_password(request.password, admin["passwordHash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_jwt(admin)
+    return {"message": "Login successful", "token": token, "admin": {"username": admin["username"]}}
+
+
+@app.post("/api/admin/logout")
+async def admin_logout(_: dict[str, Any] = Depends(get_current_admin)) -> dict[str, str]:
+    return {"message": "Logout successful"}
+
+
+@app.get("/api/admin/me")
+async def admin_me(current_admin: dict[str, Any] = Depends(get_current_admin)) -> dict[str, Any]:
+    return {"username": current_admin["username"]}
+
+
+@app.put("/api/admin/change-password")
+async def change_password(request: ChangePasswordRequest, current_admin: dict[str, Any] = Depends(get_current_admin)) -> dict[str, str]:
+    if request.newPassword != request.confirmNewPassword:
+        raise HTTPException(status_code=400, detail="New password and confirmation do not match")
+
+    admin = await db.admins.find_one({"_id": current_admin["_id"]})
+    if not admin:
+        raise HTTPException(status_code=404, detail="Admin not found")
+
+    if not verify_password(request.currentPassword, admin["passwordHash"]):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    await db.admins.update_one(
+        {"_id": admin["_id"]},
+        {"$set": {"passwordHash": hash_password(request.newPassword)}},
+    )
+    return {"message": "Password updated successfully"}
+
+
+@app.get("/api/admin/dashboard/stats")
+async def dashboard_stats(_: dict[str, Any] = Depends(get_current_admin)) -> dict[str, int]:
+    total = await db.applications.count_documents({})
+    pending = await db.applications.count_documents({"status": "Pending"})
+    approved = await db.applications.count_documents({"status": "Approved"})
+    rejected = await db.applications.count_documents({"status": "Rejected"})
+    return {
+        "totalApplications": total,
+        "pendingApplications": pending,
+        "approvedApplications": approved,
+        "rejectedApplications": rejected,
+    }
+
+
+@app.get("/api/admin/applications")
+async def list_applications(_: dict[str, Any] = Depends(get_current_admin)) -> dict[str, list[dict[str, Any]]]:
+    applications = await db.applications.find({}, {"_id": 0}).sort("submittedAt", -1).to_list(1000)
+    return {"applications": applications}
+
+
+@app.get("/api/admin/applications/{reference_number}")
+async def get_application(reference_number: str, _: dict[str, Any] = Depends(get_current_admin)) -> dict[str, Any]:
+    application = await db.applications.find_one({"referenceNumber": reference_number}, {"_id": 0})
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return {"application": application}
+
+
+@app.patch("/api/admin/applications/{reference_number}/status")
+async def update_application_status(reference_number: str, request: StatusUpdateRequest, _: dict[str, Any] = Depends(get_current_admin)) -> dict[str, Any]:
+    result = await db.applications.find_one_and_update(
+        {"referenceNumber": reference_number},
+        {"$set": {"status": request.status.value, "updatedAt": now_utc()}},
+        return_document=True,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Application not found")
+    result.pop("_id", None)
+    return {"message": "Application status updated", "application": result}
+
+
+@app.get("/api/applications/reference/{reference_number}")
+async def get_public_application(reference_number: str) -> dict[str, Any]:
+    application = await db.applications.find_one({"referenceNumber": reference_number}, {"_id": 0})
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+    return application
+
+
+@app.post("/api/applications")
+async def create_application(
+    applicationData: str = Form(...),
+    receipt: UploadFile = File(...),
+) -> dict[str, Any]:
+    import json
+
+    payload = json.loads(applicationData)
+    vehicles = normalize_vehicles(payload)
+    if not vehicles:
+        raise HTTPException(status_code=400, detail="At least one vehicle is required")
+
+    required_fields = ["fullName", "phoneNumber", "companyName", "staffId", "parkingType", "subscriptionPeriod"]
+    for field_name in required_fields:
+        if not payload.get(field_name):
+            raise HTTPException(status_code=400, detail=f"{field_name} is required")
+
+    receipt_url = await upload_receipt_to_cloudinary(receipt)
+    reference_number = await next_reference_number()
+
+    vehicle0 = vehicles[0]
+    total_amount = int(payload.get("totalAmount") or 0)
+    if total_amount <= 0:
+        total_amount = calculate_total_amount(payload["parkingType"], payload["subscriptionPeriod"], len(vehicles))
+
+    application_doc = {
+        "referenceNumber": reference_number,
+        "fullName": payload["fullName"],
+        "phoneNumber": payload["phoneNumber"],
+        "companyName": payload["companyName"],
+        "staffId": payload["staffId"],
+        "vehicleNumber": vehicle0.get("vehicleNumber", ""),
+        "vehicleModel": vehicle0.get("vehicleModel", ""),
+        "vehicleType": vehicle0.get("vehicleType", ""),
+        "vehicleColor": vehicle0.get("vehicleColor", ""),
+        "vehicles": vehicles,
+        "parkingType": payload["parkingType"],
+        "subscriptionPeriod": payload["subscriptionPeriod"],
+        "receiptUrl": receipt_url,
+        "status": "Pending",
+        "submittedAt": now_utc(),
+        "updatedAt": now_utc(),
+        "totalAmount": total_amount,
+    }
+
+    await db.applications.insert_one(application_doc)
+
+    return {
+        "message": "Application submitted successfully",
+        "referenceNumber": reference_number,
+        "status": "Pending",
+        "submittedAt": application_doc["submittedAt"],
+    }
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, HTTPException, Header, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+from motor.motor_asyncio import AsyncIOMotorClient
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, List, Dict, Any
+from pathlib import Path
+from datetime import datetime, timezone
+from bson import ObjectId
+from io import BytesIO
+import os
+import uuid
+import bcrypt
+import certifi
+import jwt
+import cloudinary
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
+from pymongo.errors import PyMongoError
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+MONGO_URL = os.environ.get('MONGODB_URI') or os.environ.get('MONGO_URL')
+if not MONGO_URL:
+    raise RuntimeError('MONGODB_URI is required')
+
+
+def parse_cors_origins(raw_value: str) -> list[str]:
+    return [origin.strip().strip('"').strip("'") for origin in raw_value.split(',') if origin.strip()]
+
+
+DB_NAME = os.environ.get('DB_NAME', 'hispeedcity')
+JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me')
+ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'Hispeedcity')
+ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Hispeedcity2026@')
+CORS_ORIGINS = parse_cors_origins(os.environ.get('CORS_ORIGIN', os.environ.get('CORS_ORIGINS', '*')))
+MONGO_TIMEOUT_MS = int(os.environ.get('MONGO_TIMEOUT_MS', '5000'))
+
+cloudinary.config(
+    cloud_name=os.environ.get('CLOUDINARY_CLOUD_NAME'),
+    api_key=os.environ.get('CLOUDINARY_API_KEY'),
+    api_secret=os.environ.get('CLOUDINARY_API_SECRET'),
+    secure=True,
+)
+
+client = AsyncIOMotorClient(
+    MONGO_URL,
+    tlsCAFile=certifi.where() if 'localhost' not in MONGO_URL else None,
+    serverSelectionTimeoutMS=MONGO_TIMEOUT_MS,
+    connectTimeoutMS=MONGO_TIMEOUT_MS,
+    socketTimeoutMS=MONGO_TIMEOUT_MS,
+)
+db = client[DB_NAME]
+
+app = FastAPI()
+api_router = APIRouter(prefix='/api')
+
+STATUS_PENDING = 'Pending'
+STATUS_APPROVED = 'Approved'
+STATUS_REJECTED = 'Rejected'
+ALLOWED_STATUSES = {STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED}
+
+
+def serialize_doc(doc: Dict[str, Any]) -> Dict[str, Any]:
+    if not doc:
+        return doc
+    doc = dict(doc)
+    if '_id' in doc:
+        doc['_id'] = str(doc['_id'])
+    return doc
+
+
+def to_application_response(doc: Dict[str, Any]) -> Dict[str, Any]:
+    return serialize_doc(doc)
+
+
+def hash_password(password: str) -> bytes:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+
+
+def create_token(username: str) -> str:
+    payload = {
+        'sub': username,
+        'iat': datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm='HS256')
+
+
+def require_admin(authorization: Optional[str] = Header(default=None)) -> str:
+    if not authorization or not authorization.startswith('Bearer '):
+        raise HTTPException(status_code=401, detail='Authorization token missing')
+    token = authorization.split(' ', 1)[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=['HS256'])
+        return payload['sub']
+    except Exception:
+        raise HTTPException(status_code=401, detail='Invalid or expired token')
+
+
+class AdminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+class ChangePasswordRequest(BaseModel):
+    currentPassword: str
+    newPassword: str
+    confirmNewPassword: str
+
+
+class StatusUpdateRequest(BaseModel):
+    status: str
+
+
+class ApplicationCreateResponse(BaseModel):
+    message: str
+    referenceNumber: str
+    status: str
+    submittedAt: datetime
+
+
+@api_router.get('/')
+async def root():
+    return {'message': 'Hi Speed City API is running'}
+
+
+@api_router.get('/health')
+async def health():
+    return {'message': 'ok'}
+
+
+@api_router.get('/health/db')
+async def database_health():
+    try:
+        await db.command('ping')
+    except PyMongoError as exc:
+        raise HTTPException(status_code=503, detail='Database is not reachable') from exc
+    return {'message': 'database ok'}
+
+
+@api_router.post('/admin/login')
+async def admin_login(payload: AdminLoginRequest):
+    try:
+        admin = await db.admins.find_one({'username': payload.username})
+    except PyMongoError as exc:
+        raise HTTPException(status_code=503, detail='Database is not reachable') from exc
+
+    if not admin or not verify_password(payload.password, admin['passwordHash']):
+        raise HTTPException(status_code=401, detail='Invalid credentials')
+
+    token = create_token(admin['username'])
+    return {'message': 'Login successful', 'token': token, 'admin': {'username': admin['username']}}
+
+
+@api_router.post('/admin/logout')
+async def admin_logout(_: str = Depends(require_admin)):
+    return {'message': 'Logout successful'}
+
+
+@api_router.get('/admin/me')
+async def admin_me(username: str = Depends(require_admin)):
+    return {'username': username}
+
+
+@api_router.put('/admin/change-password')
+async def change_password(payload: ChangePasswordRequest, username: str = Depends(require_admin)):
+    if payload.newPassword != payload.confirmNewPassword:
+        raise HTTPException(status_code=400, detail='New password and confirmation do not match')
+
+    admin = await db.admins.find_one({'username': username})
+    if not admin:
+        raise HTTPException(status_code=404, detail='Admin account not found')
+
+    if not verify_password(payload.currentPassword, admin['passwordHash']):
+        raise HTTPException(status_code=400, detail='Current password is incorrect')
+
+    new_hash = hash_password(payload.newPassword).decode('utf-8')
+    await db.admins.update_one({'_id': admin['_id']}, {'$set': {'passwordHash': new_hash}})
+    return {'message': 'Password updated successfully'}
+
+
+@api_router.get('/admin/dashboard/stats')
+async def dashboard_stats(_: str = Depends(require_admin)):
+    total = await db.applications.count_documents({})
+    pending = await db.applications.count_documents({'status': STATUS_PENDING})
+    approved = await db.applications.count_documents({'status': STATUS_APPROVED})
+    rejected = await db.applications.count_documents({'status': STATUS_REJECTED})
+    return {
+        'totalApplications': total,
+        'pendingApplications': pending,
+        'approvedApplications': approved,
+        'rejectedApplications': rejected,
+    }
+
+
+@api_router.get('/admin/applications')
+async def list_applications(_: str = Depends(require_admin)):
+    cursor = db.applications.find({}).sort('submittedAt', -1)
+    applications = []
+    async for doc in cursor:
+        applications.append(to_application_response(doc))
+    return {'applications': applications}
+
+
+@api_router.get('/admin/applications/{reference_number}')
+async def get_application(reference_number: str, _: str = Depends(require_admin)):
+    application = await db.applications.find_one({'referenceNumber': reference_number})
+    if not application:
+        raise HTTPException(status_code=404, detail='Application not found')
+    return {'application': to_application_response(application)}
+
+
+@api_router.patch('/admin/applications/{reference_number}/status')
+async def update_application_status(reference_number: str, payload: StatusUpdateRequest, _: str = Depends(require_admin)):
+    if payload.status not in ALLOWED_STATUSES:
+        raise HTTPException(status_code=400, detail='Invalid status value')
+
+    result = await db.applications.find_one_and_update(
+        {'referenceNumber': reference_number},
+        {'$set': {'status': payload.status, 'updatedAt': datetime.now(timezone.utc)}},
+        return_document=True,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail='Application not found')
+    return {'message': 'Application status updated', 'application': to_application_response(result)}
+
+
+def calculate_total_amount(parking_type: str, subscription_period: str, vehicle_count: int) -> int:
+    parking_prices = {
+        'Non Reserved': 150,
+        'Reserved': 200,
+        'Premium': 300,
+    }
+    multipliers = {
+        'Monthly': 1,
+        'Quarterly': 3,
+        'Yearly': 12,
+    }
+    return parking_prices.get(parking_type, 0) * multipliers.get(subscription_period, 1) * max(vehicle_count, 1)
+
+
+async def upload_receipt(file: UploadFile) -> str:
+    contents = await file.read()
+    result = cloudinary.uploader.upload(
+        contents,
+        resource_type='auto',
+        folder='hispeedcity/receipts',
+        public_id=f'receipt-{uuid.uuid4().hex}',
+    )
+    return result['secure_url']
+
+
+@api_router.post('/applications', response_model=ApplicationCreateResponse)
+async def create_application(
+    applicationData: str = Form(...),
+    receipt: Optional[UploadFile] = File(None),
+):
+    import json
+    import re
+
+    try:
+        payload = json.loads(applicationData)
+    except Exception:
+        raise HTTPException(status_code=400, detail='Invalid application data')
+
+    # Application type determines whether payment/receipt is required
+    application_type = (payload.get('applicationType') or 'registration').strip().lower()
+    if application_type not in {'registration', 'deregistration', 'edit_remove'}:
+        application_type = 'registration'
+    payment_required = application_type == 'registration'
+
+    vehicles = payload.get('vehicles') or []
+    if not vehicles:
+        raise HTTPException(status_code=400, detail='At least one vehicle is required')
+
+    first_vehicle = vehicles[0]
+    if not all([
+        payload.get('fullName'), payload.get('phoneNumber'), payload.get('companyName'),
+        first_vehicle.get('vehicleNumber'), first_vehicle.get('vehicleModel'), first_vehicle.get('vehicleType'), first_vehicle.get('vehicleColor'),
+        payload.get('parkingType'), payload.get('subscriptionPeriod')
+    ]):
+        raise HTTPException(status_code=400, detail='Missing required fields')
+
+    # Email validation
+    email_raw = payload.get('email')
+    if not email_raw or not str(email_raw).strip():
+        raise HTTPException(status_code=400, detail='Customer email is required')
+    email_clean = str(email_raw).strip()
+    email_regex = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+    if not email_regex.match(email_clean):
+        raise HTTPException(status_code=400, detail='Invalid email format')
+
+    # Remarks are required for edit_remove
+    remarks_raw = payload.get('remarks') or ''
+    remarks_clean = str(remarks_raw).strip()
+    if application_type == 'edit_remove' and not remarks_clean:
+        raise HTTPException(status_code=400, detail='Remarks / Notes are required for Edit / Remove Vehicle requests')
+
+    # Receipt is only required for paid (registration) applications
+    receipt_url = ''
+    if payment_required:
+        if receipt is None:
+            raise HTTPException(status_code=400, detail='Payment receipt is required')
+        receipt_url = await upload_receipt(receipt)
+
+    year = datetime.now(timezone.utc).year
+    counter_id = f'applications-{year}'
+    counter = await db.counters.find_one_and_update(
+        {'_id': counter_id},
+        {'$inc': {'seq': 1}},
+        upsert=True,
+        return_document=True,
+    )
+    if not counter:
+        counter = {'seq': 1}
+    sequence = counter.get('seq', 1)
+    reference_number = f'SP-{year}-{sequence:06d}'
+
+    total_amount = payload.get('totalAmount')
+    if not isinstance(total_amount, (int, float)) or total_amount <= 0:
+        total_amount = calculate_total_amount(payload.get('parkingType', ''), payload.get('subscriptionPeriod', ''), len(vehicles))
+
+    document = {
+        'referenceNumber': reference_number,
+        'applicationType': application_type,
+        'paymentRequired': payment_required,
+        'remarks': remarks_clean,
+        'fullName': payload.get('fullName'),
+        'phoneNumber': payload.get('phoneNumber'),
+        'email': email_clean,
+        'companyName': payload.get('companyName'),
+        'staffId': (payload.get('staffId') or '').strip(),
+        'vehicleNumber': first_vehicle.get('vehicleNumber'),
+        'vehicleModel': first_vehicle.get('vehicleModel'),
+        'vehicleType': first_vehicle.get('vehicleType'),
+        'vehicleColor': first_vehicle.get('vehicleColor'),
+        'vehicles': vehicles,
+        'parkingType': payload.get('parkingType'),
+        'subscriptionPeriod': payload.get('subscriptionPeriod'),
+        'totalAmount': total_amount,
+        'receiptUrl': receipt_url,
+        'status': STATUS_PENDING,
+        'submittedAt': datetime.now(timezone.utc),
+        'updatedAt': datetime.now(timezone.utc),
+    }
+
+    await db.applications.insert_one(document)
+    return ApplicationCreateResponse(
+        message='Application submitted successfully',
+        referenceNumber=reference_number,
+        status=STATUS_PENDING,
+        submittedAt=document['submittedAt'],
+    )
+
+
+@api_router.get('/applications/reference/{reference_number}')
+async def get_application_by_reference(reference_number: str):
+    application = await db.applications.find_one({'referenceNumber': reference_number})
+    if not application:
+        raise HTTPException(status_code=404, detail='Application not found')
+    return to_application_response(application)
+
+
+@app.on_event('startup')
+async def startup_event():
+    try:
+        admin_count = await db.admins.count_documents({})
+        if admin_count == 0:
+            await db.admins.insert_one({
+                'username': ADMIN_USERNAME,
+                'passwordHash': hash_password(ADMIN_PASSWORD).decode('utf-8'),
+                'createdAt': datetime.now(timezone.utc),
+            })
+    except Exception as exc:
+        print(f'Application startup warning: database initialization skipped: {exc}')
+
+
+@app.on_event('shutdown')
+async def shutdown_event():
+    client.close()
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=CORS_ORIGINS if CORS_ORIGINS != ['*'] else ['*'],
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
+
+app.include_router(api_router)

@@ -13,8 +13,9 @@ window.addEventListener('DOMContentLoaded', function() {
     // Populate personal information
     document.getElementById('review-fullName').textContent = data.fullName;
     document.getElementById('review-phoneNumber').textContent = data.phoneNumber;
+    document.getElementById('review-email').textContent = data.email || '';
     document.getElementById('review-companyName').textContent = data.companyName;
-    document.getElementById('review-staffId').textContent = data.staffId;
+    document.getElementById('review-staffId').textContent = data.staffId || '-';
     
     // Create vehicle information section
     const vehicleSection = document.querySelector('.review-container').children[1];
