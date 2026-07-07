@@ -16,6 +16,7 @@ let allApplications = [];
 window.addEventListener('DOMContentLoaded', function() {
     const applicationsList = document.getElementById('applicationsList');
     const filter = document.getElementById('appTypeFilter');
+    const searchInput = document.getElementById('applicationsSearch');
 
     requestJson('/admin/applications', { loadingMessage: 'Loading applications...' })
         .then(result => {
@@ -30,22 +31,52 @@ window.addEventListener('DOMContentLoaded', function() {
     if (filter) {
         filter.addEventListener('change', renderApplications);
     }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', renderApplications);
+    }
 });
 
 function renderApplications() {
     const applicationsList = document.getElementById('applicationsList');
     const filter = document.getElementById('appTypeFilter');
     const filterValue = filter ? filter.value : 'all';
+    const searchInput = document.getElementById('applicationsSearch');
+    const searchValue = (searchInput ? searchInput.value : '').trim().toLowerCase();
     const badge = document.getElementById('appCountBadge');
 
-    const filtered = filterValue === 'all'
-        ? allApplications
-        : allApplications.filter(app => (app.applicationType || 'registration') === filterValue);
+    const filtered = allApplications.filter(app => {
+        const matchesType = filterValue === 'all' || (app.applicationType || 'registration') === filterValue;
+        if (!matchesType) {
+            return false;
+        }
+
+        if (!searchValue) {
+            return true;
+        }
+
+        const plateCandidates = [
+            app.vehicleNumber,
+            ...(Array.isArray(app.vehicles) ? app.vehicles.map(vehicle => vehicle && vehicle.vehicleNumber).filter(Boolean) : [])
+        ];
+
+        const searchableText = [
+            app.fullName,
+            app.referenceNumber,
+            ...plateCandidates
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        return searchableText.includes(searchValue);
+    });
 
     applicationsList.innerHTML = '';
 
     if (badge) {
-        badge.textContent = `${filtered.length} of ${allApplications.length} applications`;
+        const typeLabel = filterValue === 'all' ? 'applications' : `${filterValue.replace('_', ' ')} applications`;
+        badge.textContent = `${filtered.length} of ${allApplications.length} ${typeLabel}`;
     }
 
     if (filtered.length === 0) {

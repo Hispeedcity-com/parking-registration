@@ -209,7 +209,7 @@ def normalize_vehicles(payload: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def calculate_total_amount(parking_type: str, subscription_period: str, vehicle_count: int) -> int:
-    parking_prices = {"Non Reserved": 150, "Reserved": 200, "Premium": 300}
+    parking_prices = {"Non Reserved": 159, "Reserved": 212, "Premium": 318}
     multipliers = {"Monthly": 1, "Quarterly": 3, "Yearly": 12}
     return parking_prices.get(parking_type, 0) * multipliers.get(subscription_period, 1) * max(vehicle_count, 1)
 
@@ -586,9 +586,9 @@ async def update_application_status(reference_number: str, payload: StatusUpdate
 
 def calculate_total_amount(parking_type: str, subscription_period: str, vehicle_count: int) -> int:
     parking_prices = {
-        'Non Reserved': 150,
-        'Reserved': 200,
-        'Premium': 300,
+        'Non Reserved': 159,
+        'Reserved': 212,
+        'Premium': 318,
     }
     multipliers = {
         'Monthly': 1,
