@@ -54,9 +54,9 @@ window.addEventListener('DOMContentLoaded', function() {
     // Update parking subscription
     const parkingTypeText = data.parkingType;
     let price = 0;
-    if (parkingTypeText.includes('Non Reserved')) price = 150;
-    else if (parkingTypeText.includes('Reserved')) price = 200;
-    else if (parkingTypeText.includes('Premium')) price = 300;
+    if (parkingTypeText.includes('Non Reserved')) price = 159;
+    else if (parkingTypeText.includes('Reserved')) price = 212;
+    else if (parkingTypeText.includes('Premium')) price = 318;
     
     document.getElementById('review-parkingType').textContent = `${data.parkingType} (RM${price} per car)`;
     document.getElementById('review-subscriptionPeriod').textContent = data.subscriptionPeriod;
