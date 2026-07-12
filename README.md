@@ -18,3 +18,5 @@ This creates:
 - `Downloads/Digatal-registartion-form`
 
 > Note: the repository slug is currently `Digatal-registartion-form`, so keep that exact name in clone commands.
+
+Credit to @youssef_mabrouk
