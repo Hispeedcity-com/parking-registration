@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: hispeedcity-registration-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: MONGODB_URI
+        sync: false
+      - key: DB_NAME
+        sync: false
+
+  - type: web
+    name: hispeedcity-registration-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && printf "window.__API_BASE_URL__ = '%s/api';\\n" "$API_BACKEND_URL" > public/config.js && npm run build
+    staticPublishPath: build
+    envVars:
+      - key: API_BACKEND_URL
+        fromService:
+          type: web
+          name: hispeedcity-registration-api
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: REACT_APP_BACKEND_URL
+        fromService:
+          type: web
+          name: hispeedcity-registration-api
+          envVarKey: RENDER_EXTERNAL_URL
