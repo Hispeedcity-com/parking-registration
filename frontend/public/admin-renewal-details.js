@@ -127,7 +127,7 @@ function renderRenewalDetails(renewal) {
 }
 
 function wireStatusActions(renewalReference, status, renewal) {
-    if (status !== 'Pending') {
+    if (String(status || '').trim().toLowerCase() !== 'pending') {
         return;
     }
 
@@ -138,7 +138,7 @@ function wireStatusActions(renewalReference, status, renewal) {
     actionButtons.style.display = 'flex';
 
     approveButton.addEventListener('click', function() {
-        if (renewal && renewal.renewalType === 'Individual') {
+        if (renewal && String(renewal.renewalType || '').trim().toLowerCase() === 'individual') {
             openApprovalModal(renewalReference);
             return;
         }
@@ -228,8 +228,8 @@ function wireApprovalModal() {
                 return;
             }
 
-            if (!approvalPayload.quantity || !approvalPayload.unitPrice || !approvalPayload.totalAmount) {
-                showAppMessage('Please complete the quantity, unit price, and total amount fields.', 'warning');
+            if (!approvalPayload.quantity || approvalPayload.unitPrice <= 0 || approvalPayload.totalAmount <= 0) {
+                showAppMessage('Enter a unit price greater than RM 0. The total amount will be calculated automatically.', 'warning');
                 return;
             }
 
