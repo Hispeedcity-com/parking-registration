@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import html
+import asyncio
+import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -39,6 +41,37 @@ class ReceiptRenderArtifact:
     html: str
     pdf_bytes: bytes
     pdf_path: Path
+
+
+async def ensure_playwright_chromium_installed() -> None:
+    """Install the Playwright-matched Chromium binary when the host omitted it."""
+    async with async_playwright() as playwright:
+        try:
+            browser = await playwright.chromium.launch(headless=True)
+        except Exception as exc:
+            if "Executable doesn't exist" not in str(exc):
+                raise
+        else:
+            await browser.close()
+            return
+
+    process = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-m",
+        "playwright",
+        "install",
+        "chromium",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    output, _ = await process.communicate()
+    if process.returncode != 0:
+        details = output.decode("utf-8", errors="replace")[-4000:]
+        raise RuntimeError(f"Could not install Playwright Chromium: {details}")
+
+    async with async_playwright() as playwright:
+        browser = await playwright.chromium.launch(headless=True)
+        await browser.close()
 
 
 def _escape(value: Any) -> str:
