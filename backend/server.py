@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, TypeAdapter
 from starlette.concurrency import run_in_threadpool
 
 from email_service import build_receipt_email_message, build_renewal_receipt_email_message, send_email_with_attachment
-from receipt_renderer import generate_renewal_receipt_pdf
+from receipt_renderer import ensure_playwright_chromium_installed, generate_renewal_receipt_pdf
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env", override=True)
@@ -1294,7 +1294,8 @@ async def approve_renewal(
     if not renewal:
         raise HTTPException(status_code=404, detail='Renewal request not found')
 
-    if str(renewal.get('renewalType') or '').strip().lower() != 'individual':
+    renewal_type = str(renewal.get('renewalType') or '').strip().lower()
+    if renewal_type not in {'individual', 'individual renewal'}:
         raise HTTPException(status_code=400, detail='Approval receipt form is only available for Individual renewal requests')
 
     if renewal.get('status') == STATUS_APPROVED:
@@ -1538,6 +1539,7 @@ async def get_application_by_reference(reference_number: str):
 
 @app.on_event('startup')
 async def startup_event():
+    await ensure_playwright_chromium_installed()
     try:
         admin_count = await db.admins.count_documents({})
         if admin_count == 0:
