@@ -138,7 +138,8 @@ function wireStatusActions(renewalReference, status, renewal) {
     actionButtons.style.display = 'flex';
 
     approveButton.addEventListener('click', function() {
-        if (renewal && String(renewal.renewalType || '').trim().toLowerCase() === 'individual') {
+        const renewalType = String(renewal && renewal.renewalType || '').trim().toLowerCase();
+        if (renewalType === 'individual' || renewalType === 'individual renewal') {
             openApprovalModal(renewalReference);
             return;
         }
