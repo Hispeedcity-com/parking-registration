@@ -34,6 +34,8 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 DEFAULT_ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "Hispeedcity").strip()
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Hispeedcity2026@").strip()
+RECEIPT_COMPANY_NAME = "Hispeedcity Sdn Bhd (1331446-H)"
+RECEIPT_COMPANY_ADDRESS = "-"
 
 cloudinary.config(
     cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"],
@@ -665,7 +667,7 @@ class StatusUpdateRequest(BaseModel):
 
 
 class ApplicationApprovalRequest(BaseModel):
-    companyAddress: str
+    companyAddress: str = RECEIPT_COMPANY_ADDRESS
 
 class RenewalCreateResponse(BaseModel):
     message: str
@@ -882,7 +884,7 @@ async def approve_application(
     if application.get('status') == STATUS_APPROVED:
         raise HTTPException(status_code=400, detail='Application is already approved')
 
-    company_address = normalize_required_text(payload.companyAddress, 'Company Address')
+    company_address = RECEIPT_COMPANY_ADDRESS
     receipt_document = build_registration_receipt_document(application, company_address, username)
 
     try:
@@ -999,7 +1001,7 @@ def build_registration_receipt_document(application: dict[str, Any], company_add
         'renewalType': application.get('parkingType') or 'Individual Renewal',
         'customerName': application.get('fullName') or '',
         'customerEmail': application.get('email') or '',
-        'companyName': application.get('companyName') or '',
+        'companyName': RECEIPT_COMPANY_NAME,
         'companyAddress': company_address,
         'receiptNumber': generate_receipt_number(application.get('referenceNumber') or ''),
         'parkingType': application.get('parkingType') or 'Individual Renewal',
@@ -1298,8 +1300,8 @@ async def approve_renewal(
     if renewal.get('status') == STATUS_APPROVED:
         raise HTTPException(status_code=400, detail='Renewal request is already approved')
 
-    company_name = normalize_required_text(payload.companyName, 'Company Name')
-    company_address = normalize_required_text(payload.companyAddress, 'Company Address')
+    company_name = RECEIPT_COMPANY_NAME
+    company_address = RECEIPT_COMPANY_ADDRESS
     product_month = normalize_required_text(payload.productMonth, 'Product / Subscription Month')
     parking_type = normalize_required_text(payload.parkingType, 'Parking Type')
     receipt_number = str(payload.receiptNumber or '').strip() or generate_receipt_number(renewal_reference)
