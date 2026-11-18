@@ -23,7 +23,7 @@ This creates:
 
 ### Backend on Google Cloud Run
 
-The backend already has a production Docker entrypoint in [backend/Dockerfile](backend/Dockerfile). Deploy it as a Cloud Run service and set these environment variables:
+The backend already has a production Docker entrypoint in [backend/Dockerfile](backend/Dockerfile). Its image installs the Chromium browser used to generate approval receipt PDFs. Rebuild and redeploy the backend image whenever the Playwright or receipt renderer code changes; deploying only the frontend does not update PDF generation. Build from the `backend/` directory and deploy it as a Cloud Run service. Set these environment variables:
 
 - `MONGODB_URI`
 - `DB_NAME`
