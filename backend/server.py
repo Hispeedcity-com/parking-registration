@@ -1294,7 +1294,7 @@ async def approve_renewal(
     if not renewal:
         raise HTTPException(status_code=404, detail='Renewal request not found')
 
-    if str(renewal.get('renewalType') or '').strip() != 'Individual':
+    if str(renewal.get('renewalType') or '').strip().lower() != 'individual':
         raise HTTPException(status_code=400, detail='Approval receipt form is only available for Individual renewal requests')
 
     if renewal.get('status') == STATUS_APPROVED:
