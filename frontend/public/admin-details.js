@@ -42,7 +42,7 @@ window.addEventListener('DOMContentLoaded', function() {
                 deregistration: 'Deregistration',
                 edit_remove: 'Edit / Remove Vehicle'
             };
-            const appType = app.applicationType || 'registration';
+            const appType = String(app.applicationType || 'registration').trim().toLowerCase();
             const appTypeLabel = appTypeLabels[appType] || 'New Registration';
             const isRegistration = appType === 'registration';
             const isEditRemove = appType === 'edit_remove';
@@ -135,7 +135,7 @@ window.addEventListener('DOMContentLoaded', function() {
                 ${approvedReceiptSectionHtml}
             `;
 
-            if (app.status === 'Pending') {
+            if (String(app.status || '').trim().toLowerCase() === 'pending') {
                 const actionButtons = document.getElementById('actionButtons');
                 actionButtons.style.display = 'flex';
 
