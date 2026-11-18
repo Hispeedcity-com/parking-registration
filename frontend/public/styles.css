@@ -565,7 +565,7 @@ body.has-open-drawer {
     padding: 26px 28px 30px;
 }
 
-.approval-modal__section + .approval-modal__section {
+.approval-modal_section + .approval-modal_section {
     margin-top: 24px;
 }
 
@@ -2386,31 +2386,4 @@ footer {
     .admin-drawer {
         width: min(100vw, 380px);
     }
-}
-
-/* Keep approval dialogs and their controls above the backdrop */
-.approval-modal:not([hidden]) {
-    z-index: 99999;
-    pointer-events: auto;
-}
-
-.approval-modal__backdrop {
-    z-index: 0;
-}
-
-.approval-modal__dialog {
-    position: relative;
-    z-index: 1;
-    pointer-events: auto;
-}
-
-.approval-modal__actions,
-.approval-modal__actions button {
-    position: relative;
-    z-index: 2;
-    pointer-events: auto;
-}
-
-.approval-modal__actions button {
-    cursor: pointer;
 }
