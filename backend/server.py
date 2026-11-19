@@ -2138,4 +2138,124 @@ helpline_register_case_routes('oilleaks', 'oil-leaks', OilLeakPayload, clean_oil
 # ============================ END HELPLINE CASE MANAGEMENT ============================
 
 
+# ============================ HISPEEDCITY AI ASSISTANT ============================
+class AssistantChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    session_id: Optional[str] = Field(default=None, max_length=128)
+
+
+class AssistantChatResponse(BaseModel):
+    answer: str
+    intent: str
+    confidence: float
+    requires_plate: bool = False
+    vehicle_plate: Optional[str] = None
+    portal_status: Optional[str] = None
+
+
+_assistant_bot = None
+_assistant_sessions: dict[str, dict[str, Any]] = {}
+
+
+def assistant_bot():
+    global _assistant_bot
+    if _assistant_bot is None:
+        from backend.chatbot.chatbot import ChatBot
+        _assistant_bot = ChatBot()
+    return _assistant_bot
+
+
+def assistant_plate_pattern(value: str) -> str:
+    plate = re.sub(r'\s+', '', str(value or '').upper())
+    return r'^\s*' + r'\s*'.join(re.escape(ch) for ch in plate) + r'\s*$'
+
+
+def assistant_plates(record: dict[str, Any]) -> list[str]:
+    vehicles = record.get('vehicles') or []
+    plates = [str(v.get('vehicleNumber') or '').strip().upper() for v in vehicles if isinstance(v, dict)]
+    if not plates and record.get('vehicleNumber'):
+        plates = [str(record['vehicleNumber']).strip().upper()]
+    raw = record.get('vehiclePlateNumbers') or []
+    if isinstance(raw, dict):
+        raw = [plate for values in raw.values() for plate in (values if isinstance(values, list) else [])]
+    if isinstance(raw, list):
+        plates.extend(str(plate or '').strip().upper() for plate in raw)
+    return list(dict.fromkeys(p for p in plates if p))
+
+
+def assistant_portal_record(record: dict[str, Any], plate: Optional[str] = None) -> dict[str, Any]:
+    return {
+        'found': True,
+        'vehicle_plate': plate or (assistant_plates(record)[0] if assistant_plates(record) else ''),
+        'vehicle_plates': assistant_plates(record),
+        'customer_name': record.get('fullName') or record.get('customerName') or record.get('contactPerson') or '',
+        'parking_type': record.get('parkingType') or record.get('renewalType') or 'Season Parking',
+        'status': record.get('status') or 'Unknown',
+        'validity_period': record.get('subscriptionPeriod') or record.get('renewalMonthNote') or 'as shown in your approval email',
+        'payment_status': 'Paid' if record.get('receiptInfo') or record.get('receiptUrl') else 'Not shown',
+        'reference_number': record.get('referenceNumber') or record.get('renewalReference') or '',
+    }
+
+
+@api_router.get('/parking/status/{vehicle_plate}')
+async def assistant_parking_status(vehicle_plate: str):
+    pattern = assistant_plate_pattern(vehicle_plate)
+    query = {'$or': [
+        {'vehicleNumber': {'$regex': pattern, '$options': 'i'}},
+        {'vehicles.vehicleNumber': {'$regex': pattern, '$options': 'i'}},
+        {'vehiclePlateNumbers': {'$regex': pattern, '$options': 'i'}},
+        {'vehiclePlateNumbers.non_reserved': {'$regex': pattern, '$options': 'i'}},
+        {'vehiclePlateNumbers.reserved': {'$regex': pattern, '$options': 'i'}},
+        {'vehiclePlateNumbers.premium': {'$regex': pattern, '$options': 'i'}},
+    ]}
+    records = await db.applications.find(query, {'_id': 0}).sort('updatedAt', -1).to_list(100)
+    renewals = await db.renewals.find(query, {'_id': 0}).sort('updatedAt', -1).to_list(100)
+    records.extend(renewals)
+    if not records:
+        return {'found': False, 'vehicle_plate': vehicle_plate.upper()}
+    record = next((r for r in records if str(r.get('status', '')).lower() in ('active', 'approved')), records[0])
+    return assistant_portal_record(record, vehicle_plate.upper())
+
+
+@api_router.get('/parking/status/reference/{reference_number}')
+async def assistant_reference_status(reference_number: str):
+    ref = reference_number.strip().upper()
+    record = await db.applications.find_one({'referenceNumber': ref}, {'_id': 0})
+    if not record:
+        record = await db.renewals.find_one({'renewalReference': ref}, {'_id': 0})
+    if not record:
+        return {'found': False, 'reference_number': ref}
+    return assistant_portal_record(record)
+
+
+@api_router.post('/ai/chat', response_model=AssistantChatResponse)
+async def assistant_chat(payload: AssistantChatRequest):
+    message = payload.message.strip()
+    if not message:
+        raise HTTPException(status_code=400, detail='Message cannot be empty')
+    session_id = (payload.session_id or str(uuid.uuid4()))[:128]
+    context = _assistant_sessions.get(session_id, {})
+    try:
+        result = await run_in_threadpool(assistant_bot().ask, message, context)
+    except Exception as exc:
+        print(f'AI assistant request failed: {exc}')
+        raise HTTPException(status_code=503, detail='The assistant is temporarily unavailable. Please try again.')
+    if result.get('vehicle_plate'):
+        context['vehicle_plate'] = result['vehicle_plate']
+    if result.get('intent'):
+        context['intent'] = result['intent']
+    _assistant_sessions[session_id] = context
+    if len(_assistant_sessions) > 5000:
+        _assistant_sessions.clear()
+    return AssistantChatResponse(
+        answer=result.get('answer', 'Sorry, I could not find an answer.'),
+        intent=result.get('intent', 'general'),
+        confidence=float(result.get('confidence', 0.0)),
+        requires_plate=bool(result.get('requires_plate', False)),
+        vehicle_plate=result.get('vehicle_plate'),
+        portal_status=result.get('portal_status'),
+    )
+# ============================ END HISPEEDCITY AI ASSISTANT ============================
+
+
 app.include_router(api_router)
