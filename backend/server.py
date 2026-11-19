@@ -1593,7 +1593,7 @@ HELPLINE_PHOTO_LABELS = {
     'accidents': ['ACCIDENT SCENE', 'VEHICLE DAMAGE', 'OTHER'],
     'oilleaks':  ['OIL LEAK', 'AFTER CLEANUP', 'OTHER'],
 }
-HELPLINE_STATIONS = ['ENTRY 101', 'ENTRY 102', 'EXIT 101', 'EXIT 102']
+HELPLINE_STATIONS = ['ENTRY 101', 'ENTRY 102', 'EXIT 201', 'EXIT 202']
 HELPLINE_TYPES = ['Season', 'Hourly']
 HELPLINE_UPPER_FIELDS = ['plate', 'entry', 'exit', 'station', 'reason', 'solution', 'remarks']
 CLAMP_STATUSES = ['CLAMPED', 'RELEASED']
@@ -1861,7 +1861,7 @@ def clean_helpline_log(payload: HelplineLogPayload, legacy: bool = False, existi
     if data['type'] not in HELPLINE_TYPES and not (existing and not existing.get('type') and data['type'] == ''):
         raise HTTPException(status_code=400, detail='Type of parker must be Season or Hourly')
     if not (data['station'] in HELPLINE_STATIONS or (existing and data['station'] == existing.get('station', ''))):
-        raise HTTPException(status_code=400, detail='Station must be ENTRY 101, ENTRY 102, EXIT 101 or EXIT 102')
+        raise HTTPException(status_code=400, detail='Station must be ENTRY 101, ENTRY 102, EXIT 201 or EXIT 202')
     return data
 
 
