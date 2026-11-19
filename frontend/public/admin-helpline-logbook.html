@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helpline Logbook</title>
+    <link rel="preload" href="styles.css" as="style">
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        html,body{background:#F5F5F5;margin:0;padding:0;}
+        #appMessageRegion{z-index:20000 !important;}   /* error and success messages must show above the pop-up forms */
+        .hl-tabs{display:flex;gap:10px;margin:18px 0 4px;flex-wrap:wrap;}
+        .hl-tab{border:2px solid #00C853;background:#fff;color:#067d45;padding:10px 22px;border-radius:99px;font:700 15px Arial,sans-serif;cursor:pointer;}
+        .hl-tab.is-active{background:#00C853;color:#fff;}
+        .hl-subtabs{display:flex;gap:8px;margin:14px 0 0;flex-wrap:wrap;}
+        .hl-sub{border:0;border-bottom:3px solid transparent;background:transparent;color:#555;padding:8px 16px;font:700 14px Arial,sans-serif;cursor:pointer;}
+        .hl-sub.is-active{color:#067d45;border-bottom-color:#00C853;}
+        .hl-panel{display:none;}.hl-panel.is-active{display:block;}
+        .hl-stats{display:flex;gap:12px;flex-wrap:wrap;margin:18px 0;}
+        .hl-stat{background:#fff;border-left:4px solid #00C853;border-radius:14px;padding:14px 22px;min-width:130px;box-shadow:0 4px 14px rgba(6,125,69,.08);}
+        .hl-stat.red{border-left-color:#e11d48;}
+        .hl-stat b{display:block;font-size:26px;}.hl-stat span{color:#666;font-size:13px;}
+        .hl-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+        .hl-bar input,.hl-bar select{padding:9px 12px;border:1px solid #ddd;border-radius:8px;font:inherit;background:#fff;}
+        .hl-bar label{font-size:12px;color:#666;display:block;margin-bottom:2px;}
+        .hl-bar .hl-chk{display:flex;align-items:center;gap:6px;font-size:14px;color:#333;padding-bottom:10px;}
+        .hl-bar .hl-chk input{padding:0;}
+        .hl-card{background:#fff;border-radius:14px;padding:16px 18px;margin-bottom:12px;box-shadow:0 4px 14px rgba(6,125,69,.08);}
+        .hl-top{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+        .hl-plate{font-size:18px;font-weight:700;}
+        .hl-case{display:inline-block;font:700 12px Arial,sans-serif;color:#067d45;background:#e8f8ee;border:1px solid #b7e8c8;border-radius:6px;padding:2px 8px;margin-left:8px;letter-spacing:.3px;}
+        .hl-tag{font-size:12px;padding:2px 10px;border-radius:99px;border:1px solid;margin-left:6px;text-transform:uppercase;}
+        .hl-Season{color:#1e40af;background:#eff6ff;border-color:#bfdbfe;}.hl-Hourly{color:#8a5a00;background:#fff4dc;border-color:#f0d594;}
+        .hl-CLAMPED{color:#b91c1c;background:#fee2e2;border-color:#fecaca;font-weight:700;}.hl-RELEASED{color:#047857;background:#d1fae5;border-color:#a7f3d0;font-weight:700;}
+        .hl-NA{color:#777;background:#f3f4f6;border-color:#e5e7eb;}
+        .hl-INJ{color:#b91c1c;background:#fee2e2;border-color:#fecaca;font-weight:700;}.hl-NOPHOTO{color:#b45309;background:#fef3c7;border-color:#fde68a;font-weight:700;}.hl-PHOTO{color:#047857;background:#d1fae5;border-color:#a7f3d0;}
+        .hl-meta{color:#666;font-size:13px;margin-top:6px;}.hl-row{margin-top:6px;font-size:14px;}.hl-row i{color:#666;font-style:normal;}
+        .hl-empty{background:#fff;border-radius:14px;padding:28px;text-align:center;color:#666;}
+        .hl-hint{color:#b91c1c;font-size:13px;}
+        .hl-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+        .hl-thumbs img,.ph-grid img{width:96px;height:72px;object-fit:cover;border-radius:8px;border:1px solid #ddd;cursor:zoom-in;background:#f0f0f0;}
+        .hl-more{width:96px;height:72px;border-radius:8px;border:1px dashed #bbb;color:#555;font-size:13px;display:flex;align-items:center;justify-content:center;}
+        .ph-block{border:1px solid #e5e5e5;border-radius:12px;padding:12px;margin-top:10px;}
+        .ph-block h4{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+        .ph-grid{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+        .ph-grid figure{margin:0;font-size:11px;color:#666;max-width:96px;}
+        .hl-modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:9999;padding:16px;}
+        .hl-modal.is-open{display:flex;}
+        .hl-box{background:#fff;border-radius:16px;padding:22px;width:min(620px,100%);max-height:92vh;overflow:auto;}
+        .hl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}.hl-full{grid-column:1/-1;}
+        .hl-grid label{font-size:13px;color:#666;display:block;margin-bottom:3px;}
+        .hl-grid input,.hl-grid select,.hl-grid textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #ddd;border-radius:8px;font:inherit;}
+        .hl-release{grid-column:1/-1;border:2px dashed #a7f3d0;border-radius:12px;padding:12px;}
+        .hl-release .hl-grid{margin-top:8px;}
+        .hl-photobox{grid-column:1/-1;border:2px dashed #fecaca;border-radius:12px;padding:12px;background:#fffafa;}
+        .hl-photobox.ok{border-color:#a7f3d0;background:#f7fdf9;}
+        .hl-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
+        .au-item{border-left:4px solid #00C853;background:#f7fbf8;border-radius:10px;padding:10px 12px;margin:10px 0;font-size:14px;}
+        .au-item.upd{border-left-color:#f59e0b;}.au-item.imp{border-left-color:#3b82f6;}.au-item.pho{border-left-color:#8b5cf6;}
+        .au-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;font-weight:700;}.au-when{color:#666;font-weight:400;font-size:13px;}
+        .au-chg{margin-top:6px;font-size:13px;}.au-chg i{color:#666;font-style:normal;}.au-old{color:#b91c1c;text-decoration:line-through;}.au-new{color:#047857;font-weight:700;}
+        #lbModal{background:rgba(0,0,0,.85);z-index:9998;flex-direction:column;gap:10px;}
+        #lbModal img{max-width:96vw;max-height:80vh;border-radius:8px;background:#fff;}
+        #lbCap{color:#fff;font-size:14px;text-align:center;}#lbCap a{color:#7dffb0;}
+        @media(max-width:560px){.hl-grid{grid-template-columns:1fr;}}
+    </style>
+</head>
+<body>
+    <div class="page admin-page">
+        <nav class="navbar">
+            <div class="container">
+                <div class="logo" onclick="window.location.href='admin-dashboard.html'" style="cursor:pointer;">
+                    <span class="logo-text">Hi<span class="logo-highlight">speedcity</span></span>
+                    <span class="admin-badge">Admin</span>
+                </div>
+                <a href="index.html" class="logout-link" data-testid="logout-link">Logout</a>
+            </div>
+        </nav>
+
+        <div class="container" style="padding-top:28px;">
+            <div class="applications-header">
+                <div><h1 data-testid="helpline-title">Helpline Logbook</h1></div>
+                <button class="btn btn-secondary" onclick="window.location.href='admin-dashboard.html'" data-testid="back-dashboard-btn">Back to Dashboard</button>
+            </div>
+
+            <div class="hl-tabs" id="mainTabs"></div>
+
+            <!-- ===================== PROBLEM LOG (case type HL) ===================== -->
+            <div class="hl-panel is-active" id="panel_problems">
+                <div class="hl-stats">
+                    <div class="hl-stat"><b id="hlTotal">0</b><span>Total Records</span></div>
+                    <div class="hl-stat"><b id="hlSeason">0</b><span>Season Parker</span></div>
+                    <div class="hl-stat"><b id="hlHourly">0</b><span>Hourly Parker</span></div>
+                </div>
+                <div class="hl-bar">
+                    <div><label>Search</label><input id="hlSearch" placeholder="Car plate or case number..." style="min-width:230px;"></div>
+                    <div><label>Type of parker</label><select id="hlType"><option value="">All types</option><option>Season</option><option>Hourly</option></select></div>
+                    <div><label>From date</label><input type="date" id="hlFrom"></div>
+                    <div><label>To date</label><input type="date" id="hlTo"></div>
+                    <span id="hlCount" style="color:#666;font-size:13px;padding-bottom:10px;"></span>
+                    <span style="flex:1"></span>
+                    <button class="btn btn-primary" id="hlAdd">+ New Entry</button>
+                    <button class="btn btn-secondary" id="hlCsv">Export CSV</button>
+                    <button class="btn btn-secondary" id="hlImport" style="display:none;">Import Old Logbook (one time)</button>
+                </div>
+                <div id="hlRange" class="hl-hint"></div>
+                <div id="hlList"></div>
+            </div>
+            <!-- the Car Clamping, Accident and Oil Leak panels are created by the script below -->
+        </div>
+    </div>
+
+    <!-- Problem log form -->
+    <div class="hl-modal" id="hlModal">
+        <div class="hl-box">
+            <h3 id="hlTitle" style="margin-top:0;">New Entry</h3>
+            <div class="hl-grid">
+                <div><label>Date *</label><input type="date" id="f_date"></div>
+                <div><label>Car Plate No. *</label><input id="f_plate"></div>
+                <div><label>Entry Time *</label><input id="f_entry" placeholder="e.g. 14:28"></div>
+                <div><label>Exit Time</label><input id="f_exit" placeholder="e.g. 16:37"></div>
+                <div><label>Exit Date <small>(only if overnight)</small></label><input type="date" id="f_exitDate"></div>
+                <div><label>Type of Parker *</label><select id="f_type"><option>Season</option><option>Hourly</option></select></div>
+                <div class="hl-full"><label>Station *</label><select id="f_station"></select></div>
+                <div class="hl-full"><label>Problem *</label><textarea id="f_reason" rows="2"></textarea></div>
+                <div class="hl-full"><label>Solution *</label><textarea id="f_solution" rows="2"></textarea></div>
+                <div class="hl-full"><label>Remarks</label><input id="f_remarks"></div>
+            </div>
+            <div class="hl-actions">
+                <button class="btn btn-secondary" id="hlCancel">Cancel</button>
+                <button class="btn btn-primary" id="hlSave">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Case form for Car Clamping, Accident and Oil Leak (built by the script) -->
+    <div class="hl-modal" id="csModal">
+        <div class="hl-box">
+            <h3 id="csTitle" style="margin-top:0;">New</h3>
+            <div class="hl-grid" id="csGrid"></div>
+            <div class="hl-actions">
+                <button class="btn btn-secondary" id="csCancel">Cancel</button>
+                <button class="btn btn-primary" id="csSave">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audit history (read only) -->
+    <div class="hl-modal" id="auModal">
+        <div class="hl-box">
+            <h3 id="auTitle" style="margin-top:0;">History</h3>
+            <div id="auList"></div>
+            <div class="hl-actions"><button class="btn btn-secondary" id="auClose">Close</button></div>
+        </div>
+    </div>
+
+    <!-- Photo viewer -->
+    <div class="hl-modal" id="lbModal">
+        <img id="lbImg" alt="Photo proof">
+        <div id="lbCap"></div>
+        <button class="btn btn-secondary" id="lbClose" style="background:#fff;">Close</button>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="api.js"></script>
+    <script>
+/* =====================================================================
+   HELPLINE LOGBOOK PAGE  (one file: page + script + the 157 old records)
+   Uses the portal's own helpers from api.js: requestJson, requestFormData, showAppMessage, escapeHtml
+   ===================================================================== */
+
+/* ---------- the 157 old records from the Excel logbook (used by the one-time import button) ---------- */
+const HL_LEGACY = [{"date":"2024-08-08","plate":"JTD 4592","entry":"07:55","exit":"07:57","station":"","reason":"THE CLIENT REVERSED PARKING IN FRONT OF THE LPR AS IT CAPTURED THE EXIT TIME","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES NOT CAPTURE THE VEHICLE'S LICENSE PLATE WHEN THE DRIVER IS ATTEMPTING TO PARK.","type":"Season","remarks":""},{"date":"2024-08-08","plate":"JWD 3533","entry":"07:57","exit":"18:11","station":"","reason":"THE CLIENT REVERSED PARKING IN FRONT OF THE LPR AS IT CAPTURED THE EXIT TIME","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES NOT CAPTURE THE VEHICLE'S LICENSE PLATE WHEN THE DRIVER IS ATTEMPTING TO PARK.","type":"Season","remarks":""},{"date":"2024-08-08","plate":"JTB 504","entry":"00:00","exit":"17:54:16","station":"","reason":"LPR CAPTURE JTD 504 INSTEAD OF JTB 504","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-08","plate":"JTG 687","entry":"08:16:42","exit":"18:09","station":"","reason":"LPR CAPTURE JTG 001 INSTEAD OF JTG 687 ( BARRIER COVERED THE NUMBER PLATE)","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-08","plate":"JLQ 1122","entry":"08:33:33","exit":"18:37","station":"","reason":"LPR CAPTURE JLQ 112 INSTEAD JLQ 1122","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-09","plate":"JTG 687","entry":"08:05:32","exit":"","station":"","reason":"LPR CAPTURE JTG 001 INSTEAD OF JTG 687 ( BARRIER COVERED THE NUMBER PLATE)","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-09","plate":"JWD 3533","entry":"08:19:54","exit":"","station":"","reason":"LPR CAPTURE JMD 3533 INSTEAD OF JWD 3533","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-13","plate":"VLX 991","entry":"09:26:18","exit":"","station":"","reason":"EXIT BARRIER CANNOT CAPTURE THE CAR BECAUSE OF THE LPR CAPTURE POSITION","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES CAPTURE THE VEHICLE'S LICENSE PLATE CORRECTLY.","type":"Season","remarks":""},{"date":"2024-08-13","plate":"JTJ 5725","entry":"10:53:48","exit":"","station":"","reason":"EXIT BARRIER CANNOT CAPTURE THE CAR BECAUSE OF THE LPR CAPTURE POSITION","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES CAPTURE THE VEHICLE'S LICENSE PLATE CORRECTLY.","type":"Season","remarks":""},{"date":"2024-08-14","plate":"VLX 991","entry":"09:26:34","exit":"","station":"","reason":"EXIT BARRIER CANNOT CAPTURE THE CAR BECAUSE OF THE LPR CAPTURE POSITION","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES CAPTURE THE VEHICLE'S LICENSE PLATE CORRECTLY.","type":"Season","remarks":""},{"date":"2024-08-14","plate":"VDR 1617","entry":"13:59:27","exit":"","station":"","reason":"EXIT BARRIER CANNOT CAPTURE THE CAR BECAUSE OF THE LPR CAPTURE POSITION","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES CAPTURE THE VEHICLE'S LICENSE PLATE CORRECTLY.","type":"Season","remarks":"ORIGINAL TYPE: YEARLY"},{"date":"2024-08-14","plate":"JLQ 1122","entry":"07:18:26","exit":"","station":"","reason":"LPR CAPTURE JLQ 112 INSTEAD JLQ 1122","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR","type":"Season","remarks":""},{"date":"2024-08-15","plate":"AME 674","entry":"12:51:53","exit":"","station":"","reason":"LPR CAPTURE AME 64 INSTEAD AME 674","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-15","plate":"JTG 687","entry":"08:19:45","exit":"","station":"","reason":"EXIT BARRIER CANNOT CAPTURE THE CAR BECAUSE OF THE LPR CAPTURE POSITION","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES CAPTURE THE VEHICLE'S LICENSE PLATE CORRECTLY.","type":"Season","remarks":""},{"date":"2024-08-16","plate":"JLQ 1122","entry":"08:00","exit":"13:40","station":"","reason":"LPR CAPTURE JLQ 112 INSTEAD JLQ 1122","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-16","plate":"JLQ 1122","entry":"14:30","exit":"17:50","station":"","reason":"LPR CAPTURE JLQ 112 INSTEAD JLQ 1122","solution":"REQUEST DTECH TO REVERT TO THE PREVIOUS SOFTWARE VERSION, AS THE CURRENT SOFTWARE IS CAUSING THE LPR TO INCORRECTLY DETECT LICENSE PLATES.","type":"Season","remarks":""},{"date":"2024-08-16","plate":"JTG 687","entry":"07:54:32","exit":"19:00","station":"","reason":"EXIT BARRIER CANNOT CAPTURE THE CAR BECAUSE OF THE LPR CAPTURE POSITION","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES CAPTURE THE VEHICLE'S LICENSE PLATE CORRECTLY.","type":"Season","remarks":""},{"date":"2024-08-19","plate":"JVJ 9642","entry":"","exit":"","station":"","reason":"EXIT BARRIER CANNOT CAPTURE THE CAR BECAUSE OF THE LPR CAPTURE POSITION ( KERETA TINGGI)","solution":"ADJUST THE POSITION OF THE LPR CAMERA TO ENSURE IT DOES CAPTURE THE VEHICLE'S LICENSE PLATE CORRECTLY.","type":"Season","remarks":""},{"date":"2024-08-19","plate":"VCF7900","entry":"09:17:07","exit":"","station":"","reason":"READ AS EXIT BUT THE BARRIER DIDNT OPEN","solution":"OPEN THE BARRIER FOR THE CLIENT WHEN THEY CALL THE HELPLINE; IT SHOULD ONLY TAKE A FEW SECONDS TO DO SO.","type":"Season","remarks":""},{"date":"2025-04-14","plate":"NDM8309","entry":"NO ENTRY INFORMATION","exit":"19:16:25","station":"EXIT 201","reason":"BARRIER NOT RAISE UP","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-15","plate":"JKA737","entry":"NO ENTRY INFORMATION","exit":"18:14","station":"EXIT 201","reason":"CAR PLATE NUMBER NOT DETETCTED WHEN ENTRY","solution":"MANUALLY OPEN USING PMS","type":"Hourly","remarks":""},{"date":"2025-04-15","plate":"WJL6020","entry":"09:16:54","exit":"18:37:37","station":"EXIT 202","reason":"CAR PLATE NUMBER DETECTED AS WJL602","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-17","plate":"JTL7187","entry":"09:05:40","exit":"18:53:15","station":"EXIT 202","reason":"BARRIER NOT RAISE UP AFTER CAPTURED CAR PLATE NUMBER","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-17","plate":"JTJ952","entry":"NO ENTRY INFORMATION","exit":"19:28:26","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-21","plate":"RAX5936","entry":"NO ENTRY INFORMATION","exit":"13:53:20","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"ENTER THEIR ENTRY TIME","type":"Hourly","remarks":""},{"date":"2025-04-21","plate":"NBR27","entry":"NO ENTRY INFORMATION","exit":"17:26:06","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-21","plate":"JMY9128","entry":"NO ENTRY INFORMATION","exit":"18:12:39","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-21","plate":"JVA2538","entry":"NO ENTRY INFORMATION","exit":"18:36:19","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-21","plate":"JTB7655","entry":"NO ENTRY INFORMATION","exit":"19:29:40","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-22","plate":"NDM8309","entry":"12:18","exit":"19:28:52","station":"EXIT 201","reason":"NO ENTRY INFORMATION BUT CAPTURED IN LPR IMAGES","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-04-22","plate":"JRH957","entry":"09:04:48","exit":"19:52:39","station":"EXIT 201","reason":"CANNOT PAY AT PAYMENT TERMINAL","solution":"CUSTOMER UTURN BACK AND COME BACK TO MAKE PAYMENT","type":"Hourly","remarks":""},{"date":"2025-04-30","plate":"JTF8253","entry":"09:56:10","exit":"18:11:06","station":"EXIT 202","reason":"JMB7871 WAS ENTERED. JTF8253 ENTERED AS HOURLY.","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-05-04","plate":"VLK8566","entry":"07:30","exit":"16:05:07","station":"EXIT 201","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-05-08","plate":"JTG687","entry":"07:08:42","exit":"17:07:03","station":"EXIT 202","reason":"CAR PLATE NUMBER NOT DETECTED WHEN EXIT BECAUSE 4X4 CAR","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-05-11","plate":"JSM9273","entry":"00:00","exit":"08:14","station":"EXIT 202","reason":"LPR READ THE CAR PLATE AS JSM923 BECAUSE OF THE INCOMPLETE CAR PLATE(DAMAGE)","solution":"PAID RM12 AT THE TERMINAL PAYMENT","type":"Season","remarks":""},{"date":"2025-05-20","plate":"JVX4816","entry":"14:32:19","exit":"20/5/2025","station":"EXIT 201","reason":"POWER FAILURE","solution":"MANUALLY OPEN USING PMS","type":"Hourly","remarks":""},{"date":"2025-05-20","plate":"JUT6126","entry":"NO ENTRY INFORMATION","exit":"17:07:59","station":"EXIT 202","reason":"POWER FAILURE","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-05-20","plate":"UTHM122","entry":"NO ENTRY INFORMATION","exit":"17:10","station":"EXIT 201","reason":"POWER FAILURE","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-05-20","plate":"JVW9274","entry":"NO ENTRY INFORMATION","exit":"19:25:39","station":"EXIT 202","reason":"POWER FAILURE","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-05-26","plate":"VAB901","entry":"08:13:08","exit":"12:52:38","station":"EXIT 202","reason":"PMS DETECTED BUT BARRIER DID NOT OPEN","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-05-26","plate":"JWD3533","entry":"NO ENTRY INFORMATION","exit":"18:06:50","station":"EXIT 201","reason":"LPR CAPTURED CAR PLATE NUMBER AS JMD3533","solution":"MANUALLY OPEN USING PMS AND REPORT TO DTECH","type":"Season","remarks":""},{"date":"2025-05-26","plate":"JTF8253","entry":"09:55:34","exit":"19:09:56","station":"EXIT 202","reason":"ENTERED AS HOURLY BECAUSE JMB7871 WAS ENTERED","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-06-05","plate":"FFF4773","entry":"09:13:08","exit":"18:34:51","station":"EXIT 202","reason":"PMS DETECTED BUT BARRIER DID NOT OPEN","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-06-05","plate":"JKE25","entry":"14:04:40","exit":"18:44:59","station":"EXIT 202","reason":"PMS DETECTED BUT BARRIER DID NOT OPEN","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-06-11","plate":"VCT1410","entry":"08:18:24","exit":"17:15:39","station":"EXIT 201","reason":"PMS CAPTURE THE ENTRY INFORMATION BUT PARKER FAIL TO PAY","solution":"ENTER ENTRY INFORMATION","type":"Hourly","remarks":""},{"date":"2025-06-16","plate":"JSF6810","entry":"10:09:25","exit":"13:22:42","station":"EXIT 202","reason":"ENTERED AS HOURLY BECAUSE JUX 996 DID NOT CAPTURE WHEN EXIT","solution":"MANUALLY OPEN BARRIER AND UPDATE TO DTECH","type":"Season","remarks":""},{"date":"2025-06-24","plate":"NBX3917","entry":"14:23:38","exit":"17:39","station":"EXIT 201","reason":"PMS DETECTED BUT BARRIER DID NOT OPEN","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-07-25","plate":"CCN8009","entry":"08:40:36","exit":"12:40:36","station":"EXIT 201","reason":"LPR CAPTURED 2 DIFFERENT CAR PLATE NUMBER DURING ENTRY AND EXIT","solution":"MANUALLY OPEN USING PMS","type":"Hourly","remarks":""},{"date":"2025-08-11","plate":"JHQ7463","entry":"09:53:37","exit":"07:53:36","station":"EXIT 201","reason":"LPR DETECTED BUT DATA NOT SYNC IN PMS","solution":"MANUALLY OPEN USING PMS","type":"Season","remarks":""},{"date":"2025-08-25","plate":"JTP 1735","entry":"09:00","exit":"18:41","station":"EXIT 201","reason":"NO ENTRY INFORMATION IN PMS","solution":"FILL IN THE ENTRY INFORMATION IN PMS AND LET THE TENANT TO EXIT AGAIN, MONITOR SHOWED APPROVED BUT BARRIER COME DOWN HIT THE CAR DUE TO THE LOOP DETECTOR RESETTING DUE TO THE TIMING AND POSITION OF THE CAR","type":"Season","remarks":""},{"date":"2025-10-06","plate":"JKG5062","entry":"14:24","exit":"18:32","station":"EXIT 201","reason":"LPR NOT DETECT CAR PLATE","solution":"OPEN BARRIER MANUALLY, ASKED FOR MANUAL TRANSFER TO HISPEEDCITY BANK","type":"Hourly","remarks":""},{"date":"2025-10-06","plate":"JTQ2624","entry":"08:24 (3 OCTOBER)","exit":"18:32","station":"EXIT 202","reason":"NO ENTRY INFORMATION DUE TO ENTER SURING SYSTEM DOWNTIME, PARKER NEED TO PAY AS HOURLY","solution":"PARKER PAID, NO REFUND SINCE HE DID NOT CALL HELPLINE AT THE MOMENT","type":"Season","remarks":""},{"date":"2025-10-06","plate":"PPF8148","entry":"09:32","exit":"18:32","station":"EXIT 202","reason":"LPR NOT DETECT CAR PLATE (TOO DARK) LPR LIGHTS BROKEN","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2025-10-07","plate":"JKG5062","entry":"14:20","exit":"17:31","station":"EXIT 201","reason":"LPR NOT DETECT CAR PLATE (TOO DARK) LPR LIGHTS BROKEN","solution":"OPEN BARRIER MANUALLY, ASKED FOR MANUAL TRANSFER TO HISPEEDCITY BANK","type":"Hourly","remarks":""},{"date":"2025-10-08","plate":"WGH53","entry":"07:43","exit":"17:30","station":"EXIT 202","reason":"LPR WRONGLY CAPTURED NO PLATE DUE TO CAR PLATE UNIQUE POSITION","solution":"MANUALLY OPEN THE BARRIER, ASKED DTECH TO KEY IN UNIQUELY CORRECT CAR PLAT NO FOR THIS CAR","type":"Season","remarks":""},{"date":"2025-10-08","plate":"JXT3906","entry":"05:47","exit":"18:30","station":"EXIT 202","reason":"LPR RECOGNIZED AS HOURLY DUE TO CAPTURED MOTORCYCLE PLATE UNDER HIM","solution":"MANUALLY OPEN THE BARRIER & REMOVE HIS MOTORCYCLE PLATE FROM THE SYSTEM","type":"Season","remarks":""},{"date":"2025-10-09","plate":"PPF8148","entry":"09:00","exit":"17:35","station":"EXIT 201","reason":"LPR WRONGLY CAPTURED (LED LIGHT BROKEN) TOO DARK TO DETECT","solution":"MANUALLY OPEN BARRIER AND ASK CUSTOMER TO TRANSFER TO HISPEEDCITY ACC","type":"Hourly","remarks":""},{"date":"2025-10-09","plate":"JWQ2704","entry":"08:30","exit":"17:20","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2025-10-09","plate":"JTG687","entry":"","exit":"18:27","station":"EXIT 202","reason":"","solution":"","type":"","remarks":""},{"date":"2025-10-21","plate":"NBX3917","entry":"09:00","exit":"15:00","station":"EXIT 201","reason":"LPR CAPTURED AS EXIT (CAR FOLLOW CLOSE FRINT CAR)","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2025-10-21","plate":"WGH53","entry":"07:43","exit":"17:30","station":"EXIT 202","reason":"LPR WRONGLY CAPTURED NO PLATE DUE TO CAR PLATE UNIQUE POSITION","solution":"MANUALLY OPEN THE BARRIER, ASKED DTECH TO KEY IN UNIQUELY CORRECT CAR PLAT NO FOR THIS CAR","type":"Season","remarks":""},{"date":"2025-10-27","plate":"JVK9804","entry":"09:27","exit":"09:33","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"KEY IN ENTRY INFORMATION, ASK CUST TO REVERSE","type":"Hourly","remarks":""},{"date":"2025-10-27","plate":"JSD5264","entry":"08:30","exit":"12:00","station":"EXIT 202","reason":"LPR NOT DETECT (POSITION OUT OF SENSOR BOX)","solution":"ASK CUST TO REVERSE AND MAKE SURE PLATE WITHIN THE SENSOR BOX","type":"Season","remarks":""},{"date":"2025-10-29","plate":"JEP21","entry":"08:19","exit":"12:21","station":"EXIT 202","reason":"NO ENTRY INFORMATION, FOLLOW CLOSELY FRONT CAR, LPR DETECTED AS EXITED ALREADY","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2025-11-11","plate":"BAMBEE 267","entry":"14:53","exit":"16:05","station":"EXIT 201","reason":"LPR NOT DETECT CAR PLATE DUE TO UNSTANDARDIZED FORMAT","solution":"OPEN BARRIER MANUALLY, ASKED FOR MANUAL TRANSFER TO HISPEEDCITY BANK","type":"Hourly","remarks":""},{"date":"2025-11-11","plate":"Y 1181","entry":"14:58","exit":"16:44","station":"EXIT 201","reason":"LPR NOT DETECT CAR PLATE DUE TO THE TINY PLATE","solution":"OPEN BARRIER MANUALLY, ASKED FOR MANUAL TRANSFER TO HISPEEDCITY BANK","type":"Hourly","remarks":""},{"date":"2025-11-22","plate":"VDY 7000","entry":"19:51","exit":"","station":"ENTRY 102","reason":"LPR NOT DETECT CAR PLATE DUE TO POSITION OUT OF BOX","solution":"ASK CUSTOMER TO REVERSE AND MAKE SURE PLATE WITHIN SENSOR BOX","type":"Season","remarks":""},{"date":"2025-12-09","plate":"PRY 86","entry":"16:32","exit":"18:29","station":"EXIT 202","reason":"NO ENTRY INFORMATION AS LPR WRONGLY CAPTURED CAR PLATE DURING ENTRY","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2025-12-09","plate":"JUN654","entry":"11:07","exit":"12:21","station":"EXIT 201","reason":"NO ENTRY INFORMATION AS LPR WRONGLY CAPTURED CAR PLATE DURING ENTRY","solution":"KEY IN ENTRY TIME & CUSTOMER TAP CARD TO PAY","type":"Hourly","remarks":""},{"date":"2026-01-02","plate":"WGH53","entry":"08:30","exit":"18:29","station":"EXIT 202","reason":"NO ENTRY INFORMATION AS LPR WRONGLY CAPTURED CAR PLATE DURING ENTRY","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-01-20","plate":"JYM701","entry":"14:48","exit":"18:20","station":"EXIT 202","reason":"NO ENTRY INFORMATION AS LPR WRONGLY CAPTURED CAR PLATE DURING ENTRY","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-01-22","plate":"VLK9447","entry":"13:05","exit":"16:28","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"KEY IN MANUALLY ENTRY INFORMATION","type":"Hourly","remarks":""},{"date":"2026-01-23","plate":"VLK9447","entry":"09:00","exit":"13:53","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"MANUALLY OPEN BARRIER, ASK PARKER TO MANUALLY PAY TO US","type":"Hourly","remarks":""},{"date":"2026-02-03","plate":"VEK8700","entry":"08:30","exit":"NO ENTRY INFORMATION","station":"EXIT 202","reason":"","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-02-06","plate":"JWW1076","entry":"13:50","exit":"17:30","station":"ENTRY 102","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-02-09","plate":"JWW1076","entry":"14:09","exit":"","station":"ENTRY 102","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-02-10","plate":"SLZ3556P","entry":"09:27","exit":"12:18","station":"EXIT 201","reason":"NO ENTRY INFORMATION","solution":"KEY IN ENTRY TIME","type":"Hourly","remarks":""},{"date":"2026-02-11","plate":"SLZ3556P","entry":"09:27","exit":"12:18","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"KEY IN ENTRY TIME","type":"Hourly","remarks":""},{"date":"2026-03-26","plate":"SWP4490","entry":"","exit":"14:30","station":"EXIT 202","reason":"SEASON PASS EXPIRY","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-01","plate":"JWV7554","entry":"10:23:49","exit":"11:44:40","station":"EXIT 202","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-01","plate":"JUG6236","entry":"08:50:39","exit":"13:48:17","station":"EXIT 202","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-01","plate":"SYJ6331","entry":"07:27:36","exit":"16:41:03","station":"EXIT 201","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-01","plate":"VNV283","entry":"16:21:53","exit":"17:22:44","station":"EXIT 202","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Hourly","remarks":""},{"date":"2026-04-01","plate":"VQQ4211","entry":"08:29:02","exit":"17:48:52","station":"EXIT 202","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-01","plate":"VPR1546","entry":"08:53:56","exit":"18:24:08","station":"EXIT 201","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-01","plate":"JYS850","entry":"09:14:28","exit":"18:54:34","station":"EXIT 202","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-01","plate":"JMV2266","entry":"10:14:34","exit":"20:15:03","station":"EXIT 201","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-04-02","plate":"BRA14","entry":"02:31","exit":"03:31","station":"EXIT 101","reason":"BARRIER NOT OPEN","solution":"KEY IN ENTRY TIME","type":"Hourly","remarks":""},{"date":"2026-04-02","plate":"JQE896","entry":"08:20","exit":"06:30","station":"","reason":"BARRIER NOT OPEN","solution":"MANUALLY OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-05-04","plate":"JQJ6757","entry":"08:37:36","exit":"","station":"ENTRY","reason":"BARRIER NOT OPEN","solution":"MANUAL OPENING","type":"Season","remarks":""},{"date":"2026-05-04","plate":"QBH2419","entry":"09:09:41","exit":"","station":"ENTRY","reason":"BARRIER NOT OPEN","solution":"MANUAL OPENING","type":"Hourly","remarks":""},{"date":"2026-05-04","plate":"JWL4224","entry":"08:00","exit":"19:15","station":"EXIT","reason":"BARRIER NOT OPEN DUE NUMBER PLATE DAMAGE","solution":"MANUAL OPENING","type":"Season","remarks":""},{"date":"2026-05-05","plate":"JYT8175","entry":"09:28","exit":"","station":"ENTRY 102","reason":"BARRIER NOT OPEN","solution":"MANUAL OPENING","type":"Season","remarks":""},{"date":"2026-05-05","plate":"JWL4224","entry":"","exit":"12:38","station":"EXIT","reason":"LOSS PLATE NUMBER BARRIER NOT OPEN","solution":"MANUAL OPENING","type":"Season","remarks":""},{"date":"2026-05-06","plate":"JXR791","entry":"09:00","exit":"02:28:41","station":"EXIT 101","reason":"NO ENTRY INFO","solution":"MANUAL OPENING","type":"Hourly","remarks":""},{"date":"2026-05-06","plate":"PATRIO5960","entry":"15:00","exit":"15:42","station":"EXIT 202","reason":"NO ENTRU INFO","solution":"ENTTER ENTRY INFO","type":"Hourly","remarks":""},{"date":"2026-05-11","plate":"JYT9891","entry":"09:25","exit":"","station":"ENTRY 101","reason":"BARRIER NOT OPEN","solution":"MANUAL OPENING OF BARRIER","type":"Season","remarks":""},{"date":"2026-05-12","plate":"JYT8175","entry":"08:00","exit":"17:03","station":"EXIT 102","reason":"BARRIER NOT OPEN","solution":"MANUAL OPENING","type":"Season","remarks":""},{"date":"2026-05-13","plate":"JYM","entry":"08:57","exit":"","station":"ENTRY","reason":"BARRIER NOT OPEN","solution":"","type":"","remarks":""},{"date":"2026-05-18","plate":"X373","entry":"","exit":"12:28:52","station":"EXIT 201","reason":"BARRIER DOES NOT OPEN","solution":"WE OPEN IT MANUALLLY","type":"Season","remarks":""},{"date":"2026-05-21","plate":"JPA8029","entry":"","exit":"16:30","station":"EXIT 201","reason":"NO ENTRY INFORMATION","solution":"WE ASSIGNED ENTRY TIME","type":"Hourly","remarks":"THE CAR NUMBER JPA8029 IS HOURLY WHEN IT WENT THROUGH FOR ONE HOUR IN PARKING IT WAS UNABLE TO EXIST BECAUSE NO ENTRY INFORMATION"},{"date":"2026-05-25","plate":"WLW 4707","entry":"08:30","exit":"17:38","station":"EXIT","reason":"NO ENTRY INFO","solution":"WE ENTERD TIME","type":"Hourly","remarks":"NO ENTRY RECORD FOUND"},{"date":"2026-05-29","plate":"JBQ3921","entry":"","exit":"","station":"EXIT 201","reason":"BARIER HAS NO FUNCTION","solution":"OPEN MANUALLY","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"JTV122","entry":"","exit":"","station":"EXIT 201","reason":"BARIER HAS NO FUNCTION","solution":"OPEN MANUALLY","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"JTB3005","entry":"","exit":"","station":"EXIT 201","reason":"BARIER HAS NO FUNCTION","solution":"OPEN MANUALLY","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"EKS660","entry":"","exit":"","station":"EXIT 201","reason":"BARIER HAS NO FUNCTION","solution":"OPEN MANUALLY","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"BRE4936","entry":"","exit":"","station":"EXIT 201","reason":"BARIER HAS NO FUNCTION","solution":"OPEN MANUALLY","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"JVL1880","entry":"","exit":"","station":"EXIT 201","reason":"BARIER HAS NO FUNCTION","solution":"OPEN MANUALLY","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"JBC8417","entry":"","exit":"","station":"EXIT 201","reason":"BARIER HAS NO FUNCTION","solution":"OPEN MANUALLY","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"WLW 4707","entry":"","exit":"","station":"EXIT 201","reason":"NO ENTRY INFO","solution":"ENTER ENTRY INFO","type":"Hourly","remarks":""},{"date":"2026-05-29","plate":"WXV6262","entry":"","exit":"","station":"EXIT 202","reason":"NO ENTRY INFO","solution":"SECURITY OPENED","type":"Hourly","remarks":"LPR DOES NOT CATCH ENTIRE PLATE NUMBER"},{"date":"2026-06-03","plate":"JWN 1078","entry":"14:28","exit":"","station":"ENTRY","reason":"ENTRY BARRIER REJECTED TO BE OPENED","solution":"OPENE BARRIER MANUALLY","type":"Season","remarks":"LPR STILL UNABLE TO DETECT CARS PLATE NUMBER"},{"date":"2026-06-03","plate":"SYJ6331","entry":"07:02","exit":"04:37","station":"EXIT","reason":"EXIT 201 DID NOT OPEN","solution":"MANUALLY OPEN","type":"Season","remarks":"LPR STILL UNABLE TO DETECT CARS PLATE NUMBER"},{"date":"2026-06-07","plate":"JXN3011","entry":"08:30","exit":"16:22","station":"EXIT","reason":"SHE IS SEASON PASS BUT SYSTEM ASKED HER TO PAY","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2026-06-10","plate":"JCY9","entry":"08:45","exit":"","station":"ENTRY","reason":"LPR DID NOT DETECT CAR PLATE","solution":"OPEN BARRIER","type":"Hourly","remarks":""},{"date":"2026-06-10","plate":"WXV62","entry":"10:38","exit":"","station":"EXIT","reason":"MISMACH IN CAR PLATE NUMBER","solution":"OPEN BARRIER","type":"Hourly","remarks":"LPR STILL UNABLE TO DETECT CARS PLATE NUMBER"},{"date":"2026-06-10","plate":"JWW1076","entry":"12:30","exit":"","station":"ENTRY","reason":"LPR DID NOT DETECT CAR PLATE","solution":"OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-06-20","plate":"JTC7698","entry":"14:59","exit":"","station":"ENTRY 1","reason":"LPR DID NOT DETECT CAR PLATE","solution":"OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-06-25","plate":"ANA699","entry":"08:45","exit":"","station":"ENTRY 1","reason":"CAMERA DID NOT DETECT BECAUSE OF HER DRIVING","solution":"OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-06-25","plate":"VLE5887","entry":"08:46","exit":"18:50","station":"EXIT 1","reason":"CAMERA DID NOT DETECT CAR NUMBER AT ALL","solution":"OPEN BARRIER","type":"Season","remarks":""},{"date":"2026-06-26","plate":"JUU7641","entry":"10:14","exit":"12:42","station":"EXIT 202","reason":"GATE TOOK TIME TO BE OPENED","solution":"IT OPENED AUTOMATICLY","type":"Hourly","remarks":""},{"date":"2026-06-26","plate":"JYP1830","entry":"11:36","exit":"13:23","station":"EXIT 202","reason":"CAMERA DID NOT DETECT THE CAR NUMBER BECAUSE IT WAS NOT MATCH AND PROPER LOOK","solution":"IT OPENED AUTOMATICLY","type":"Hourly","remarks":""},{"date":"2026-06-30","plate":"VCQ320","entry":"08:53","exit":"","station":"ENTRY 101","reason":"CAMERA DID NOT DETECT THE CAR NUMBER BECAUSE IT WAS NOT MATCH AND PROPER LOOK","solution":"OPEN BARRIER","type":"Hourly","remarks":""},{"date":"2026-06-30","plate":"JYV7128","entry":"11:20","exit":"13:26","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"ENTERED TIME","type":"Hourly","remarks":""},{"date":"2026-07-01","plate":"JSE 6116","entry":"06:30","exit":"10:20","station":"EXIT 2","reason":"NO ENTRY INFO","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2026-07-01","plate":"BRY8182","entry":"08:00","exit":"11:30","station":"EXIT 2","reason":"NO ENTRY INFO","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2026-07-07","plate":"WXV62","entry":"07:22","exit":"16:31","station":"EXIT 2","reason":"CAR PLATE NOT STRAIGHT FORWARD TO LPR","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2026-07-08","plate":"JYD678","entry":"08:49","exit":"18:44","station":"EXIT 2","reason":"NO ENTRY INFORMATION","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2026-07-09","plate":"VQX183","entry":"08:05","exit":"12:44","station":"EXIT 2","reason":"LPR READ CAR PLATE NUMBER WRONGLY THE CORRECT NUMBER IS VQX183 IT READ VVX 183","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2026-07-13","plate":"VKQ246","entry":"09:00","exit":"","station":"ENTRY 1","reason":"LPR DECTECT THE CAR PLATE BUT BARRIER DID NOT OPEN","solution":"OPEN ENTRY1 MANUALLY","type":"Hourly","remarks":""},{"date":"2026-07-16","plate":"JTJ8705","entry":"09:12","exit":"13:56","station":"EXIT 2","reason":"NO ENTRY INFORMATION","solution":"INSERT ENTRY TIME AND HE PAID THEN BARRIER OPPENED","type":"Hourly","remarks":""},{"date":"2026-07-17","plate":"WC5206B","entry":"08:30","exit":"09:29","station":"EXIT 2","reason":"NO ENTRY INFORMATION","solution":"INSERT ENTRY TIME AND HE PAID THEN BARRIER OPPENED","type":"Hourly","remarks":""},{"date":"2026-07-20","plate":"JQY222","entry":"09:20","exit":"11:40","station":"EXIT 2","reason":"NO ENTRY INFORMATION","solution":"INSERT ENTRY TIME AND HE PAID THEN BARRIER OPPENED","type":"Hourly","remarks":""},{"date":"2026-07-22","plate":"FFF4773","entry":"10:20","exit":"22:05","station":"EXIT 1","reason":"NO ENTRY INFORMATION","solution":"INSERT ENTRY TIME AND HE PAID THEN BARRIER OPPENED","type":"Hourly","remarks":""},{"date":"2026-07-23","plate":"JXR7991","entry":"13:26","exit":"21:26","station":"EXIT 2","reason":"NO ENTRY INFORMATION","solution":"INSERT ENTRY TIME AND HE PAID THEN BARRIER OPPENED","type":"Hourly","remarks":""},{"date":"2026-07-27","plate":"JLP1113","entry":"","exit":"10:32","station":"EXIT 2","reason":"NO ENTRY INFORMATION","solution":"OPEN THE BARRIER","type":"Season","remarks":""},{"date":"2026-08-06","plate":"VRG140","entry":"08:45","exit":"12:08","station":"EXIT 1","reason":"NO ENTRY INFO","solution":"ENTERD INFO","type":"Hourly","remarks":""},{"date":"2026-08-17","plate":"AMP2224","entry":"08:20","exit":"11:25","station":"EXIT 1","reason":"NO ENTRY INFO","solution":"ENTERED INFO","type":"Hourly","remarks":""},{"date":"2026-08-18","plate":"KES6602","entry":"","exit":"","station":"","reason":"PARKING VIOLATION","solution":"CLAMPED WHEEL","type":"Hourly","remarks":""},{"date":"2026-09-03","plate":"VCQ320","entry":"08:53","exit":"","station":"ENTRY 101","reason":"CAMERA DID NOT DETECT THE CAR NUMBER BECAUSE IT WAS NOT MATCH AND PROPER LOOK","solution":"OPEN BARRIER","type":"Hourly","remarks":""},{"date":"2026-09-03","plate":"JWL4224","entry":"08:00","exit":"19:15","station":"EXIT","reason":"BARRIER NOT OPEN DUE NUMBER PLATE DAMAGE","solution":"MANUAL OPENING","type":"Season","remarks":""},{"date":"2026-09-04","plate":"VLK9447","entry":"13:05","exit":"16:28","station":"EXIT 202","reason":"NO ENTRY INFORMATION","solution":"KEY IN MANUALLY ENTRY INFORMATION","type":"Hourly","remarks":""},{"date":"2026-09-10","plate":"SYJ6331","entry":"07:02","exit":"04:37","station":"EXIT","reason":"EXIT 201 DID NOT OPEN","solution":"MANUALLY OPEN","type":"Season","remarks":""},{"date":"2026-09-10","plate":"BRY8182","entry":"08:00","exit":"11:30","station":"EXIT 2","reason":"NO ENTRY INFO","solution":"OPEN BARRIER MANUALLY","type":"Season","remarks":""},{"date":"2026-09-21","plate":"JTN4192","entry":"09:15","exit":"18:22","station":"EXIT 1","reason":"NO ENTRY INFO","solution":"OPEN THE BARRIER","type":"Season","remarks":""},{"date":"2026-09-21","plate":"VRG140","entry":"13:22","exit":"23:45","station":"EXIT 2","reason":"HE MADE PAYMENT BUT BARRIER DOES NOT OPPEN","solution":"OPEN THE BARRIER","type":"Hourly","remarks":"ORIGINAL TYPE: VISITOR"},{"date":"2026-09-21","plate":"SU6886M","entry":"09:32","exit":"19:04","station":"EXIT 2","reason":"NO ENTRY INFO","solution":"OPEN THE BARRIER","type":"Season","remarks":""},{"date":"2026-09-24","plate":"JUP8537","entry":"08:32","exit":"17:22","station":"EXIT 1","reason":"NO ENTRY INFO","solution":"OPEN THE BARRIER","type":"Season","remarks":""},{"date":"2026-09-30","plate":"JVW9274","entry":"08:51","exit":"19:21","station":"EXIT 2","reason":"CAMMERA DID NOT CATCH ENTIRE PLATE NUMBER","solution":"ENTER THE CAR PLATE NUMBER","type":"Season","remarks":""},{"date":"2026-09-30","plate":"JKW75","entry":"08:42","exit":"18:11","station":"EXIT 2","reason":"NO ENTRY INFOR","solution":"ENTER THE CAR PLATE NUMBER","type":"Season","remarks":""},{"date":"2026-10-01","plate":"FH7450","entry":"09:11","exit":"13:00","station":"EXIT 2","reason":"NO ENTRY INFO","solution":"KEY IN INFO","type":"Season","remarks":""},{"date":"2026-10-05","plate":"JVT1010","entry":"08:50","exit":"22:50","station":"EXIT 2","reason":"CAMERA CAPTURE WRONG PLATE","solution":"OPEN THE BARRIER","type":"Season","remarks":""},{"date":"2026-10-13","plate":"JY2002","entry":"07:33","exit":"14:55","station":"EXIT 2","reason":"HE PAID AND MOTOR BIKE PASS FAST THEN THE BARRIER CLOSE BEFORE HE EXIT","solution":"OPEN THE BARRIER","type":"Hourly","remarks":""},{"date":"2026-10-15","plate":"JUL 8374","entry":"11:00","exit":"23:55","station":"EXIT 2","reason":"NO ENTRY INFO","solution":"KEY IN THE INFO","type":"Hourly","remarks":""},{"date":"2026-10-20","plate":"NEE5541","entry":"09:10","exit":"","station":"ENTRY 1","reason":"CAMMERA DID NOT CAPTURE THE PLATE","solution":"KEY IN THE CAR AND OPEN","type":"Hourly","remarks":""},{"date":"2026-10-20","plate":"JRR7316","entry":"08:22","exit":"16:54","station":"EXIT 1","reason":"NO ENTRY INFO","solution":"KEY IN TIME","type":"Hourly","remarks":""},{"date":"2026-10-26","plate":"VFE440","entry":"07:24","exit":"16:39","station":"EXIT 1","reason":"CAR ENTER AS HOURLY","solution":"OPEN THE BARRIER","type":"Season","remarks":""}];
+
+/* ---------- small helpers ---------- */
+const $hl = id => document.getElementById(id);
+const hlFmt = d => (d ? d.split('-').reverse().join('/') : '');
+const hlMsg = (m, t) => (typeof showAppMessage === 'function' ? showAppMessage(m, t || 'error') : alert(m));
+const hlPad = n => String(n).padStart(2, '0');
+const hlToday = () => { const d = new Date(); return d.getFullYear() + '-' + hlPad(d.getMonth() + 1) + '-' + hlPad(d.getDate()); };
+const hlNow = () => { const d = new Date(); return hlPad(d.getHours()) + ':' + hlPad(d.getMinutes()); };
+const hlSq = s => String(s || '').toLowerCase().replace(/\s/g, '');
+const hlInRange = (date, from, to) => (!from || date >= from) && (!to || date <= to);
+const hlThumb = url => (/^https:\/\/res\.cloudinary\.com\/.+\/upload\//.test(url) ? url.replace('/upload/', '/upload/c_fill,w_240,h_180,q_auto,f_auto/') : url);
+const hlMatch = (r, q) => !q || hlSq(r.plate).includes(q) || hlSq(r.caseNo).includes(q);
+
+/* ---------- photo helpers ---------- */
+// shrink big phone photos before upload (keeps them clear, makes upload fast). Falls back to the original file.
+async function hlCompress(file) {
+    try {
+        if (!/^image\/(jpeg|png|webp)$/.test(file.type) || file.size < 700 * 1024) return file;
+        const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        const scale = Math.min(1, 1800 / Math.max(bmp.width, bmp.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bmp.width * scale); canvas.height = Math.round(bmp.height * scale);
+        canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.86));
+        if (!blob || blob.size >= file.size) return file;
+        return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+    } catch (e) { return file; }
+}
+async function hlPrepPhotos(fileList) {
+    const out = [];
+    for (const f of Array.from(fileList || [])) out.push(await hlCompress(f));
+    return out;
+}
+function hlPhotoCheck(files) {
+    for (const f of files) {
+        if (!/^image\/(jpeg|png|webp)$/.test(f.type)) return 'Only JPG, PNG or WEBP photos are accepted.';
+        if (f.size > 8 * 1024 * 1024) return 'A photo is larger than 8 MB.';
+    }
+    return files.length > 4 ? 'Upload at most 4 photos at a time.' : '';
+}
+
+/* ---------- tabs ---------- */
+const HL_TABS = [['problems', 'Problem Log'], ['clamping', 'Car Clamping'], ['accidents', 'Accident'], ['oilleaks', 'Oil Leak']];
+function hlShowTab(name) {
+    HL_TABS.forEach(t => {
+        $hl('tab_' + t[0]).classList.toggle('is-active', t[0] === name);
+        $hl('panel_' + t[0]).classList.toggle('is-active', t[0] === name);
+    });
+    try { history.replaceState(null, '', '#' + name); } catch (e) { /* ignore */ }
+}
+
+/* =====================================================================
+   PROBLEM LOG  (case type HL)
+   ===================================================================== */
+const HL_STATIONS = ['ENTRY 101', 'ENTRY 102', 'EXIT 101', 'EXIT 102'];
+const HL_FIELDS = ['date', 'plate', 'entry', 'exit', 'exitDate', 'station', 'type', 'reason', 'solution', 'remarks'];
+const HL_UPPER = ['plate', 'entry', 'exit', 'station', 'reason', 'solution', 'remarks'];
+let hlLogs = [], hlEditId = null;
+
+async function hlLoad() {
+    const res = await requestJson('/admin/helpline-logs', { loadingMessage: 'Loading logbook...' });
+    hlLogs = Array.isArray(res.logs) ? res.logs : [];
+    hlRender();
+}
+
+function hlRender() {
+    const q = hlSq($hl('hlSearch').value), t = $hl('hlType').value, from = $hl('hlFrom').value, to = $hl('hlTo').value;
+    $hl('hlRange').textContent = from && to && from > to ? 'The From date is after the To date.' : '';
+    const rows = hlLogs.filter(r => (!t || r.type === t) && hlInRange(r.date, from, to) && hlMatch(r, q));
+    $hl('hlTotal').textContent = hlLogs.length;
+    $hl('hlSeason').textContent = hlLogs.filter(r => r.type === 'Season').length;
+    $hl('hlHourly').textContent = hlLogs.filter(r => r.type === 'Hourly').length;
+    $hl('hlCount').textContent = rows.length + ' of ' + hlLogs.length + ' records';
+    $hl('hlImport').style.display = hlLogs.length > 0 ? 'none' : '';
+    $hl('hlList').innerHTML = rows.map(r => `
+        <div class="hl-card">
+            <div class="hl-top"><div><span class="hl-plate">${escapeHtml(r.plate)}</span>${r.caseNo ? `<span class="hl-case">${escapeHtml(r.caseNo)}</span>` : ''}${r.type ? `<span class="hl-tag hl-${escapeHtml(r.type)}">${escapeHtml(r.type)}</span>` : ''}</div><div class="hl-meta">${hlFmt(r.date)}</div></div>
+            <div class="hl-meta">Entry: ${escapeHtml(r.entry) || '-'} &nbsp;|&nbsp; Exit: ${escapeHtml(r.exit) || '-'}${r.exitDate && r.exitDate > r.date ? ' (' + hlFmt(r.exitDate) + ')' : ''} &nbsp;|&nbsp; Station: ${escapeHtml(r.station) || '-'}</div>
+            <div class="hl-row"><i>Problem:</i> ${escapeHtml(r.reason) || '-'}</div>
+            <div class="hl-row"><i>Solution:</i> ${escapeHtml(r.solution) || '-'}</div>
+            ${r.remarks ? `<div class="hl-row"><i>Remarks:</i> ${escapeHtml(r.remarks)}</div>` : ''}
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"><button class="btn btn-secondary" onclick="hlEdit('${escapeHtml(r.logId)}')">Edit</button><button class="btn btn-secondary" onclick="auOpen('logs','${escapeHtml(r.logId)}')">History</button></div>
+        </div>`).join('') || '<div class="hl-empty">No records found.</div>';
+}
+
+function hlOpen(r) {
+    hlEditId = r ? r.logId : null;
+    $hl('hlTitle').textContent = r ? 'Edit Entry' + (r.caseNo ? ': ' + r.caseNo : '') : 'New Entry';
+    const legacy = r && r.station && !HL_STATIONS.includes(r.station) ? [r.station] : [];
+    $hl('f_station').innerHTML = '<option value="">Select station</option>' + [...HL_STATIONS, ...legacy].map(s => `<option>${escapeHtml(s)}</option>`).join('');
+    HL_FIELDS.forEach(f => { $hl('f_' + f).value = r ? (r[f] || '') : (f === 'date' ? hlToday() : f === 'type' ? 'Season' : ''); });
+    $hl('hlModal').classList.add('is-open');
+}
+function hlEdit(id) { hlOpen(hlLogs.find(r => r.logId === id)); }
+function hlClose() { $hl('hlModal').classList.remove('is-open'); }
+
+async function hlSave() {
+    const o = {};
+    HL_FIELDS.forEach(f => { o[f] = $hl('f_' + f).value.trim(); });
+    HL_UPPER.forEach(k => { o[k] = o[k].toUpperCase(); });
+    const old = hlEditId ? (hlLogs.find(r => r.logId === hlEditId) || {}) : null;
+    // new entries need every required field; old records may keep a field blank if it was already blank
+    const need = (k, label) => (!o[k] && (!old || old[k])) ? label : null;
+    const missing = [need('date', 'Date'), need('plate', 'Car Plate'), need('entry', 'Entry Time'), need('station', 'Station'), need('reason', 'Problem'), need('solution', 'Solution')].filter(Boolean);
+    if (missing.length) { hlMsg('Please fill: ' + missing.join(', ') + '.'); return; }
+    if (o.entry && o.exit && !o.exitDate && /^\d{1,2}[:.]\d{2}$/.test(o.entry) && /^\d{1,2}[:.]\d{2}$/.test(o.exit) && o.exit.replace('.', ':').padStart(5, '0') < o.entry.replace('.', ':').padStart(5, '0')) {
+        hlMsg('Exit time is earlier than entry time. If the car stayed overnight, enter the Exit Date.'); return;
+    }
+    const btn = $hl('hlSave'); btn.disabled = true;
+    try {
+        const out = await requestJson(hlEditId ? '/admin/helpline-logs/' + encodeURIComponent(hlEditId) : '/admin/helpline-logs', {
+            method: hlEditId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o), loadingMessage: 'Saving...'
+        });
+        hlClose(); await hlLoad();
+        if (!hlEditId && out.message) hlMsg(out.message, 'success');
+    } catch (e) { hlMsg(e.message); }
+    btn.disabled = false;
+}
+
+async function hlImportLegacy() {
+    const legacy = HL_LEGACY;
+    if (!confirm('Import ' + legacy.length + ' old logbook records? This can only be done once. Each record gets its own case number.')) return;
+    try {
+        const out = await requestJson('/admin/helpline-logs/import-legacy', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(legacy), loadingMessage: 'Importing ' + legacy.length + ' records...'
+        });
+        hlMsg(out.message, 'success'); await hlLoad();
+    } catch (e) { hlMsg(e.message); }
+}
+
+/* =====================================================================
+   CAR CLAMPING (WC), ACCIDENT (AC), OIL LEAK (OL)  - same screens, own fields, own case number
+   ===================================================================== */
+const SECTIONS = {
+    clamping: {
+        key: 'clamping', path: 'clamping', title: 'Car Clamping', newLabel: '+ New Clamp', prefix: 'WC',
+        labels: ['CLAMPED', 'RELEASED'], requiredLabel: 'CLAMPED', statusFilter: true,
+        fields: [
+            { k: 'date', l: 'Clamp Date', t: 'date', req: 1 }, { k: 'clampTime', l: 'Clamp Time', t: 'time', req: 1 },
+            { k: 'plate', l: 'Car Plate No.', req: 1, upper: 1 }, { k: 'type', l: 'Type of Parker', t: 'select', opts: ['Season', 'Hourly'], req: 1 },
+            { k: 'location', l: 'Location / Bay', req: 1, upper: 1, full: 1 }, { k: 'reason', l: 'Reason for Clamping', t: 'textarea', req: 1, upper: 1, full: 1 },
+            { k: 'clampedBy', l: 'Clamped By', req: 1, upper: 1 }, { k: 'fineAmount', l: 'Fine Amount (RM)', t: 'number' },
+            { k: 'receiptNo', l: 'Receipt No.', upper: 1 }, { k: 'status', l: 'Status', t: 'select', opts: ['CLAMPED', 'RELEASED'], req: 1, hideNew: 1, def: 'CLAMPED' },
+            { k: 'releaseDate', l: 'Release Date', t: 'date', req: 1, box: 'release', showWhen: ['status', 'RELEASED'] },
+            { k: 'releaseTime', l: 'Release Time', t: 'time', req: 1, box: 'release', showWhen: ['status', 'RELEASED'] },
+            { k: 'releasedBy', l: 'Released By', req: 1, upper: 1, box: 'release', showWhen: ['status', 'RELEASED'], full: 1 },
+            { k: 'remarks', l: 'Remarks', upper: 1, full: 1 }
+        ],
+        photoInputs: [
+            { id: 'ph_main', mode: 'new', photoLabel: 'CLAMPED', req: 1, text: 'Photo of the clamped car showing the car plate *' },
+            { id: 'ph_rel', mode: 'edit', photoLabel: 'RELEASED', showWhen: ['status', 'RELEASED'], reqUnlessExisting: 'RELEASED', text: 'Photo of the released car *' }
+        ],
+        stats: L => [['Total Clamped', L.length], ['Currently Clamped', L.filter(r => r.status === 'CLAMPED').length, 'red'], ['Released', L.filter(r => r.status === 'RELEASED').length],
+            ['Fines Collected (RM)', L.filter(r => r.status === 'RELEASED').reduce((s, r) => s + (Number(r.fineAmount) || 0), 0).toFixed(2)]],
+        badges: r => `<span class="hl-tag hl-${escapeHtml(r.status)}">${escapeHtml(r.status)}</span><span class="hl-tag hl-${escapeHtml(r.type)}">${escapeHtml(r.type)}</span>`,
+        meta: r => `Clamped: ${escapeHtml(r.clampTime) || '-'} &nbsp;|&nbsp; Location: ${escapeHtml(r.location) || '-'} &nbsp;|&nbsp; By: ${escapeHtml(r.clampedBy) || '-'}`,
+        rows: r => [['Reason', escapeHtml(r.reason)],
+            ['Fine', (r.fineAmount != null ? 'RM ' + Number(r.fineAmount).toFixed(2) : '-') + ' &nbsp;|&nbsp; <i>Receipt:</i> ' + (escapeHtml(r.receiptNo) || '-')],
+            r.status === 'RELEASED' ? ['Released', hlFmt(r.releaseDate) + ' ' + escapeHtml(r.releaseTime) + ' by ' + escapeHtml(r.releasedBy)] : null, r.remarks ? ['Remarks', escapeHtml(r.remarks)] : null],
+        csv: { head: ['No', 'Case No.', 'Clamp Date', 'Clamp Time', 'Car Plate No.', 'Type of Parker', 'Location', 'Reason', 'Clamped By', 'Fine (RM)', 'Receipt No.', 'Status', 'Release Date', 'Release Time', 'Released By', 'Remarks', 'Photos', 'Photo Links'],
+            row: r => [r.caseNo, hlFmt(r.date), r.clampTime, r.plate, r.type, r.location, r.reason, r.clampedBy, r.fineAmount != null ? Number(r.fineAmount).toFixed(2) : '', r.receiptNo, r.status, hlFmt(r.releaseDate), r.releaseTime, r.releasedBy, r.remarks] }
+    },
+    accidents: {
+        key: 'accidents', path: 'accidents', title: 'Accident', newLabel: '+ New Accident', prefix: 'AC',
+        labels: ['ACCIDENT SCENE', 'VEHICLE DAMAGE', 'OTHER'], requiredLabel: '',
+        fields: [
+            { k: 'date', l: 'Accident Date', t: 'date', req: 1 }, { k: 'time', l: 'Accident Time', t: 'time', req: 1 },
+            { k: 'plate', l: 'Car Plate No. (main vehicle)', req: 1, upper: 1 }, { k: 'otherPlate', l: 'Other Vehicle Plate (if any)', upper: 1 },
+            { k: 'location', l: 'Location / Bay', req: 1, upper: 1, full: 1 }, { k: 'description', l: 'What happened', t: 'textarea', req: 1, upper: 1, full: 1 },
+            { k: 'injuries', l: 'Injuries', t: 'select', opts: ['NO', 'YES'], req: 1, def: 'NO' }, { k: 'reportedBy', l: 'Reported By', req: 1, upper: 1 },
+            { k: 'policeReportNo', l: 'Police Report No.', upper: 1 }, { k: 'insuranceRef', l: 'Insurance Claim Ref.', upper: 1 },
+            { k: 'remarks', l: 'Remarks', upper: 1, full: 1 }
+        ],
+        photoInputs: [{ id: 'ph_main', mode: 'new', pickLabel: true, text: 'Photos (optional now, you can add more in the Photo Proof tab)' }],
+        stats: L => [['Total Accidents', L.length], ['With Injuries', L.filter(r => r.injuries === 'YES').length, 'red'], ['Police Report Made', L.filter(r => r.policeReportNo).length],
+            ['Missing Photo', L.filter(r => !(r.photos || []).length).length, 'red']],
+        badges: r => (r.injuries === 'YES' ? '<span class="hl-tag hl-INJ">INJURIES</span>' : ''),
+        meta: r => `Time: ${escapeHtml(r.time) || '-'} &nbsp;|&nbsp; Location: ${escapeHtml(r.location) || '-'} &nbsp;|&nbsp; Reported by: ${escapeHtml(r.reportedBy) || '-'}`,
+        rows: r => [['What happened', escapeHtml(r.description)], r.otherPlate ? ['Other vehicle', escapeHtml(r.otherPlate)] : null,
+            ['Police report', escapeHtml(r.policeReportNo) || '-'], ['Insurance claim', escapeHtml(r.insuranceRef) || '-'], r.remarks ? ['Remarks', escapeHtml(r.remarks)] : null],
+        csv: { head: ['No', 'Case No.', 'Accident Date', 'Time', 'Car Plate No.', 'Other Vehicle Plate', 'Location', 'What happened', 'Injuries', 'Police Report No.', 'Insurance Claim Ref.', 'Reported By', 'Remarks', 'Photos', 'Photo Links'],
+            row: r => [r.caseNo, hlFmt(r.date), r.time, r.plate, r.otherPlate, r.location, r.description, r.injuries, r.policeReportNo, r.insuranceRef, r.reportedBy, r.remarks] }
+    },
+    oilleaks: {
+        key: 'oilleaks', path: 'oil-leaks', title: 'Oil Leak', newLabel: '+ New Oil Leak', prefix: 'OL',
+        labels: ['OIL LEAK', 'AFTER CLEANUP', 'OTHER'], requiredLabel: '',
+        fields: [
+            { k: 'date', l: 'Date', t: 'date', req: 1 }, { k: 'time', l: 'Time', t: 'time', req: 1 },
+            { k: 'plate', l: 'Car Plate No. (type UNKNOWN if not known)', req: 1, upper: 1, full: 1 },
+            { k: 'location', l: 'Location / Bay', req: 1, upper: 1, full: 1 }, { k: 'description', l: 'Description of the oil leak', t: 'textarea', req: 1, upper: 1, full: 1 },
+            { k: 'actionTaken', l: 'Action taken', t: 'textarea', req: 1, upper: 1, full: 1 },
+            { k: 'cleanedBy', l: 'Cleaned By', upper: 1 }, { k: 'reportedBy', l: 'Reported By', req: 1, upper: 1 },
+            { k: 'remarks', l: 'Remarks', upper: 1, full: 1 }
+        ],
+        photoInputs: [{ id: 'ph_main', mode: 'new', pickLabel: true, text: 'Photos (optional now, you can add more in the Photo Proof tab)' }],
+        stats: L => [['Total Oil Leaks', L.length], ['Cleaned', L.filter(r => r.cleanedBy).length], ['Missing Photo', L.filter(r => !(r.photos || []).length).length, 'red']],
+        badges: () => '',
+        meta: r => `Time: ${escapeHtml(r.time) || '-'} &nbsp;|&nbsp; Location: ${escapeHtml(r.location) || '-'} &nbsp;|&nbsp; Reported by: ${escapeHtml(r.reportedBy) || '-'}`,
+        rows: r => [['Description', escapeHtml(r.description)], ['Action taken', escapeHtml(r.actionTaken)], ['Cleaned by', escapeHtml(r.cleanedBy) || '-'], r.remarks ? ['Remarks', escapeHtml(r.remarks)] : null],
+        csv: { head: ['No', 'Case No.', 'Date', 'Time', 'Car Plate No.', 'Location', 'Description', 'Action Taken', 'Cleaned By', 'Reported By', 'Remarks', 'Photos', 'Photo Links'],
+            row: r => [r.caseNo, hlFmt(r.date), r.time, r.plate, r.location, r.description, r.actionTaken, r.cleanedBy, r.reportedBy, r.remarks] }
+    }
+};
+const S = { clamping: { logs: [], editId: null, mode: 'new' }, accidents: { logs: [], editId: null, mode: 'new' }, oilleaks: { logs: [], editId: null, mode: 'new' } };
+
+function secPanelHtml(c) {
+    const k = c.key;
+    return `
+        <div class="hl-subtabs"><button class="hl-sub is-active" id="${k}_subRec">Records</button><button class="hl-sub" id="${k}_subPho">Photo Proof</button></div>
+        <div id="${k}_recs">
+            <div class="hl-stats" id="${k}_stats"></div>
+            <div class="hl-bar">
+                <div><label>Search</label><input id="${k}_q" placeholder="Car plate or case number..." style="min-width:230px;"></div>
+                ${c.statusFilter ? `<div><label>Status</label><select id="${k}_status"><option value="">All status</option><option value="CLAMPED">Clamped</option><option value="RELEASED">Released</option></select></div>` : ''}
+                <div><label>From date</label><input type="date" id="${k}_from"></div>
+                <div><label>To date</label><input type="date" id="${k}_to"></div>
+                <span id="${k}_count" style="color:#666;font-size:13px;padding-bottom:10px;"></span>
+                <span style="flex:1"></span>
+                <button class="btn btn-primary" id="${k}_add">${c.newLabel}</button>
+                <button class="btn btn-secondary" id="${k}_csv">Export CSV</button>
+            </div>
+            <div id="${k}_range" class="hl-hint"></div>
+            <div id="${k}_list"></div>
+        </div>
+        <div id="${k}_phos" style="display:none;">
+            <div class="hl-bar" style="margin-top:14px;">
+                <div><label>Search</label><input id="${k}_pq" placeholder="Car plate or case number..." style="min-width:230px;"></div>
+                <div><label>From date</label><input type="date" id="${k}_pfrom"></div>
+                <div><label>To date</label><input type="date" id="${k}_pto"></div>
+                <label class="hl-chk"><input type="checkbox" id="${k}_pmiss"> Only cases with a missing photo</label>
+                <span id="${k}_pcount" style="color:#666;font-size:13px;padding-bottom:10px;"></span>
+            </div>
+            <div id="${k}_plist"></div>
+        </div>`;
+}
+
+function secSub(k, which) {
+    $hl(k + '_recs').style.display = which === 'rec' ? '' : 'none';
+    $hl(k + '_phos').style.display = which === 'pho' ? '' : 'none';
+    $hl(k + '_subRec').classList.toggle('is-active', which === 'rec');
+    $hl(k + '_subPho').classList.toggle('is-active', which === 'pho');
+    if (which === 'pho') secRenderPhotos(k);
+}
+
+async function secLoad(k) {
+    const res = await requestJson('/admin/helpline-' + SECTIONS[k].path, { loadingMessage: 'Loading ' + SECTIONS[k].title + '...', skipLoading: true });
+    S[k].logs = Array.isArray(res.logs) ? res.logs : [];
+    secRender(k); secRenderPhotos(k);
+}
+
+function secPhotoBadge(c, r) {
+    const ph = r.photos || [];
+    if (c.requiredLabel) {
+        return c.labels.map(l => `<span class="hl-tag ${ph.some(p => p.label === l) ? 'hl-PHOTO' : (l === 'RELEASED' && r.status !== 'RELEASED' ? 'hl-NA' : 'hl-NOPHOTO')}">${escapeHtml(l)} ${ph.some(p => p.label === l) ? '&#10003;' : (l === 'RELEASED' && r.status !== 'RELEASED' ? '-' : 'MISSING')}</span>`).join('');
+    }
+    return ph.length ? `<span class="hl-tag hl-PHOTO">${ph.length} PHOTO${ph.length > 1 ? 'S' : ''}</span>` : '<span class="hl-tag hl-NOPHOTO">NO PHOTO</span>';
+}
+
+function secRender(k) {
+    const c = SECTIONS[k], L = S[k].logs;
+    const q = hlSq($hl(k + '_q').value), from = $hl(k + '_from').value, to = $hl(k + '_to').value, st = c.statusFilter ? $hl(k + '_status').value : '';
+    $hl(k + '_range').textContent = from && to && from > to ? 'The From date is after the To date.' : '';
+    const rows = L.filter(r => (!st || r.status === st) && hlInRange(r.date, from, to) && hlMatch(r, q));
+    $hl(k + '_stats').innerHTML = c.stats(L).map(s => `<div class="hl-stat ${s[2] || ''}"><b>${escapeHtml(s[1])}</b><span>${escapeHtml(s[0])}</span></div>`).join('');
+    $hl(k + '_count').textContent = rows.length + ' of ' + L.length + ' records';
+    $hl(k + '_list').innerHTML = rows.map(r => {
+        const ph = r.photos || [];
+        return `
+        <div class="hl-card">
+            <div class="hl-top"><div><span class="hl-plate">${escapeHtml(r.plate)}</span><span class="hl-case">${escapeHtml(r.caseNo)}</span>${c.badges(r)}${secPhotoBadge(c, r)}</div><div class="hl-meta">${hlFmt(r.date)}</div></div>
+            <div class="hl-meta">${c.meta(r)}</div>
+            ${c.rows(r).filter(Boolean).map(x => `<div class="hl-row"><i>${x[0]}:</i> ${x[1]}</div>`).join('')}
+            ${ph.length ? `<div class="hl-thumbs">${ph.slice(0, 4).map(p => `<img src="${escapeHtml(hlThumb(p.url))}" alt="${escapeHtml(p.label)}" loading="lazy" onclick="lbOpen('${k}','${escapeHtml(r.logId)}','${escapeHtml(p.photoId)}')">`).join('')}${ph.length > 4 ? `<div class="hl-more">+${ph.length - 4} more</div>` : ''}</div>` : ''}
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-secondary" onclick="csEdit('${k}','${escapeHtml(r.logId)}')">Edit</button>
+                <button class="btn btn-secondary" onclick="secGoPhotos('${k}','${escapeHtml(r.caseNo)}')">Photos (${ph.length})</button>
+                <button class="btn btn-secondary" onclick="auOpen('${k}','${escapeHtml(r.logId)}')">History</button>
+                ${k === 'clamping' && r.status === 'CLAMPED' ? `<button class="btn btn-primary" onclick="csRelease('${escapeHtml(r.logId)}')">Release Vehicle</button>` : ''}
+            </div>
+        </div>`;
+    }).join('') || '<div class="hl-empty">No records found.</div>';
+}
+
+/* ---------- Photo Proof tab ---------- */
+function secGoPhotos(k, caseNo) {
+    secSub(k, 'pho'); $hl(k + '_pq').value = caseNo; secRenderPhotos(k);
+}
+function secRenderPhotos(k) {
+    const c = SECTIONS[k], L = S[k].logs;
+    const q = hlSq($hl(k + '_pq').value), from = $hl(k + '_pfrom').value, to = $hl(k + '_pto').value, miss = $hl(k + '_pmiss').checked;
+    const needs = r => c.labels.some(l => (l === 'RELEASED' ? r.status === 'RELEASED' : (c.requiredLabel ? l === c.requiredLabel : l === c.labels[0])) && !(r.photos || []).some(p => p.label === l));
+    const rows = L.filter(r => hlInRange(r.date, from, to) && hlMatch(r, q) && (!miss || needs(r)));
+    $hl(k + '_pcount').textContent = rows.length + ' of ' + L.length + ' cases';
+    const shown = rows.slice(0, 60);
+    $hl(k + '_plist').innerHTML = shown.map(r => `
+        <div class="hl-card">
+            <div class="hl-top"><div><span class="hl-plate">${escapeHtml(r.plate)}</span><span class="hl-case">${escapeHtml(r.caseNo)}</span>${c.badges(r)}</div><div class="hl-meta">${hlFmt(r.date)}</div></div>
+            ${c.labels.map((l, i) => {
+                const ph = (r.photos || []).filter(p => p.label === l);
+                const required = c.requiredLabel ? (l === 'CLAMPED' || (l === 'RELEASED' && r.status === 'RELEASED')) : false;
+                const missing = !ph.length && (required || (!c.requiredLabel && i === 0));
+                return `<div class="ph-block"><h4>${escapeHtml(l)} ${required ? '<span class="hl-tag hl-NOPHOTO" style="margin:0;">REQUIRED</span>' : ''} ${missing ? '<span class="hl-tag hl-NOPHOTO" style="margin:0;">NO PHOTO YET</span>' : `<span class="hl-tag hl-PHOTO" style="margin:0;">${ph.length} PHOTO${ph.length === 1 ? '' : 'S'}</span>`}</h4>
+                    <div class="ph-grid">${ph.map(p => `<figure><img src="${escapeHtml(hlThumb(p.url))}" alt="${escapeHtml(l)}" loading="lazy" onclick="lbOpen('${k}','${escapeHtml(r.logId)}','${escapeHtml(p.photoId)}')"><figcaption>${escapeHtml(hlFmt((p.uploadedAt || '').slice(0, 10)))}</figcaption></figure>`).join('')}</div>
+                    <input type="file" accept="image/jpeg,image/png,image/webp" multiple style="display:none;" id="up_${k}_${escapeHtml(r.logId)}_${i}" onchange="phUpload('${k}','${escapeHtml(r.logId)}','${escapeHtml(l)}',this)">
+                    <button class="btn btn-secondary" onclick="document.getElementById('up_${k}_${escapeHtml(r.logId)}_${i}').click()">+ Upload ${escapeHtml(l)} photo</button></div>`;
+            }).join('')}
+        </div>`).join('') + (rows.length > shown.length ? `<div class="hl-empty">Showing the first ${shown.length} cases. Use the search or dates to narrow down.</div>` : '') || '<div class="hl-empty">No cases found.</div>';
+}
+
+async function phUpload(k, id, label, input) {
+    const files = await hlPrepPhotos(input.files); input.value = '';
+    if (!files.length) return;
+    const bad = hlPhotoCheck(files); if (bad) { hlMsg(bad); return; }
+    try {
+        const fd = new FormData(); fd.append('label', label); files.forEach(f => fd.append('photos', f));
+        const out = await requestFormData('/admin/helpline-' + SECTIONS[k].path + '/' + encodeURIComponent(id) + '/photos', fd, { loadingMessage: 'Uploading photo...' });
+        hlMsg(out.message, 'success'); await secLoad(k);
+    } catch (e) { hlMsg(e.message); }
+}
+
+/* ---------- photo viewer ---------- */
+function lbOpen(k, id, photoId) {
+    const rec = S[k].logs.find(r => r.logId === id); const p = rec && (rec.photos || []).find(x => x.photoId === photoId); if (!p) return;
+    $hl('lbImg').src = p.url;
+    $hl('lbCap').innerHTML = `${escapeHtml(rec.caseNo)} &nbsp;|&nbsp; ${escapeHtml(rec.plate)} &nbsp;|&nbsp; <b>${escapeHtml(p.label)}</b> &nbsp;|&nbsp; ${escapeHtml(p.filename)} &nbsp;|&nbsp; ${escapeHtml(new Date(p.uploadedAt).toLocaleString('en-MY'))} by ${escapeHtml(p.uploadedBy)} &nbsp;|&nbsp; <a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">open original</a>`;
+    $hl('lbModal').classList.add('is-open');
+}
+
+/* ---------- the case form (new / edit / release) ---------- */
+let csKey = null;
+const csVisible = f => !f.showWhen || (document.getElementById('cs_' + f.showWhen[0]) && $hl('cs_' + f.showWhen[0]).value === f.showWhen[1]);
+
+function csFieldHtml(f) {
+    const id = 'cs_' + f.k, full = f.full ? ' class="hl-full"' : '';
+    let input;
+    if (f.t === 'select') input = `<select id="${id}">${f.opts.map(o => `<option>${escapeHtml(o)}</option>`).join('')}</select>`;
+    else if (f.t === 'textarea') input = `<textarea id="${id}" rows="2"></textarea>`;
+    else if (f.t === 'number') input = `<input type="number" min="0" step="0.01" id="${id}">`;
+    else input = `<input type="${f.t === 'date' ? 'date' : f.t === 'time' ? 'time' : 'text'}" id="${id}">`;
+    return `<div${full} data-k="${f.k}"><label>${escapeHtml(f.l)}${f.req ? ' *' : ''}</label>${input}</div>`;
+}
+
+function csBuild(c, mode, rec) {
+    let html = '', lastBox = null;
+    const flush = () => { if (lastBox) { html += '</div></div>'; lastBox = null; } };
+    c.fields.forEach(f => {
+        if (f.hideNew && mode === 'new') return;
+        if (f.box !== lastBox) { flush(); if (f.box) { html += `<div class="hl-release" id="cs_box_${f.box}"><b style="color:#047857;">Release details</b><div class="hl-grid">`; lastBox = f.box; } }
+        html += csFieldHtml(f);
+    });
+    flush();
+    c.photoInputs.forEach(p => {
+        if (p.mode === 'new' && mode !== 'new') return;
+        if (p.mode === 'edit' && mode === 'new') return;
+        const existing = p.photoLabel && rec && (rec.photos || []).some(x => x.label === p.photoLabel);
+        html += `<div class="hl-photobox${existing ? ' ok' : ''}" id="cs_pbox_${p.id}"><label style="font-weight:700;color:#333;">${escapeHtml(p.text)}${existing ? ' (already uploaded, you can add more)' : ''}</label>
+            ${p.pickLabel ? `<select id="cs_pl_${p.id}" style="margin-bottom:8px;">${c.labels.map(l => `<option>${escapeHtml(l)}</option>`).join('')}</select>` : ''}
+            <input type="file" id="cs_${p.id}" accept="image/jpeg,image/png,image/webp" multiple>
+            <div style="font-size:12px;color:#666;margin-top:4px;">JPG, PNG or WEBP, up to 4 photos at a time. Large photos are reduced automatically.</div></div>`;
+    });
+    if (mode !== 'new' && c.key !== 'clamping') html += '<div class="hl-full" style="font-size:13px;color:#666;">To add more photos, use the Photo Proof tab.</div>';
+    $hl('csGrid').innerHTML = html;
+}
+
+function csRefresh() {
+    const c = SECTIONS[csKey];
+    c.fields.forEach(f => { if (f.showWhen && f.box) { const b = $hl('cs_box_' + f.box); if (b) b.style.display = csVisible(f) ? '' : 'none'; } });
+    c.photoInputs.forEach(p => { if (p.showWhen) { const b = $hl('cs_pbox_' + p.id); if (b) b.style.display = $hl('cs_' + p.showWhen[0]) && $hl('cs_' + p.showWhen[0]).value === p.showWhen[1] ? '' : 'none'; } });
+}
+
+function csOpen(k, rec, mode) {
+    csKey = k; const c = SECTIONS[k], st = S[k];
+    st.editId = rec ? rec.logId : null; st.mode = mode;
+    $hl('csTitle').textContent = (mode === 'release' ? 'Release Vehicle' : (rec ? 'Edit ' + c.title : 'New ' + c.title)) + (rec ? ': ' + rec.caseNo : '');
+    csBuild(c, mode, rec);
+    c.fields.forEach(f => {
+        const el = $hl('cs_' + f.k); if (!el) return;
+        const def = f.def !== undefined ? f.def : (f.t === 'date' ? hlToday() : f.t === 'select' ? f.opts[0] : '');
+        el.value = rec ? (rec[f.k] != null ? rec[f.k] : def) : def;
+    });
+    if (mode === 'release') {
+        $hl('cs_status').value = 'RELEASED'; $hl('cs_releaseDate').value = hlToday(); $hl('cs_releaseTime').value = hlNow();
+    }
+    c.fields.forEach(f => { const el = $hl('cs_' + f.k); if (el && f.k === 'status') el.addEventListener('change', csRefresh); });
+    csRefresh();
+    $hl('csModal').classList.add('is-open');
+}
+function csEdit(k, id) { csOpen(k, S[k].logs.find(r => r.logId === id), 'edit'); }
+function csRelease(id) { csOpen('clamping', S.clamping.logs.find(r => r.logId === id), 'release'); }
+function csClose() { $hl('csModal').classList.remove('is-open'); }
+
+async function csSave() {
+    const k = csKey, c = SECTIONS[k], st = S[k], editing = !!st.editId;
+    const rec = editing ? S[k].logs.find(r => r.logId === st.editId) : null;
+    const o = {}, missing = [];
+    c.fields.forEach(f => {
+        const el = $hl('cs_' + f.k);
+        if (!el) { o[f.k] = f.def !== undefined ? f.def : ''; return; }
+        if (!csVisible(f)) { o[f.k] = ''; return; }
+        let v = el.value.trim(); if (f.upper) v = v.toUpperCase();
+        o[f.k] = f.t === 'number' ? (v === '' ? null : Number(v)) : v;
+        if (f.req && v === '') missing.push(f.l);
+    });
+    if (missing.length) { hlMsg('Please fill: ' + missing.join(', ') + '.'); return; }
+    const btn = $hl('csSave'); btn.disabled = true;
+    try {
+        if (!editing) {
+            // NEW case: the record and its photos are sent together
+            const main = c.photoInputs.find(p => p.mode === 'new');
+            const files = await hlPrepPhotos($hl('cs_' + main.id).files);
+            if (main.req && !files.length) { hlMsg('Please choose the photo of the clamped car showing the car plate. It is required.'); btn.disabled = false; return; }
+            const bad = hlPhotoCheck(files); if (bad) { hlMsg(bad); btn.disabled = false; return; }
+            const fd = new FormData(); fd.append('record', JSON.stringify(o));
+            if (main.pickLabel && files.length) fd.append('photoLabel', $hl('cs_pl_' + main.id).value);
+            files.forEach(f => fd.append('photos', f));
+            const out = await requestFormData('/admin/helpline-' + c.path, fd, { loadingMessage: 'Saving ' + c.title + ' and uploading photos...' });
+            csClose(); await secLoad(k); hlMsg(out.message, 'success');
+        } else {
+            // EDIT / RELEASE: the release photo (clamping) is uploaded first, then the record is saved
+            const relInput = c.photoInputs.find(p => p.mode === 'edit');
+            if (relInput && o.status === 'RELEASED') {
+                const files = await hlPrepPhotos($hl('cs_' + relInput.id).files);
+                const have = (rec.photos || []).some(p => p.label === relInput.photoLabel);
+                if (!files.length && !have) { hlMsg('Please choose the photo of the released car. It is required to release the vehicle.'); btn.disabled = false; return; }
+                if (files.length) {
+                    const bad = hlPhotoCheck(files); if (bad) { hlMsg(bad); btn.disabled = false; return; }
+                    const fd = new FormData(); fd.append('label', relInput.photoLabel); files.forEach(f => fd.append('photos', f));
+                    const up = await requestFormData('/admin/helpline-' + c.path + '/' + encodeURIComponent(st.editId) + '/photos', fd, { loadingMessage: 'Uploading photo...' });
+                    rec.photos = (rec.photos || []).concat(up.photos || []);
+                }
+            }
+            await requestJson('/admin/helpline-' + c.path + '/' + encodeURIComponent(st.editId), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o), loadingMessage: 'Saving...' });
+            csClose(); await secLoad(k);
+        }
+    } catch (e) { hlMsg(e.message); }
+    btn.disabled = false;
+}
+
+/* ---------- CSV ---------- */
+function hlDownloadCsv(name, head, rows) {
+    const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+    const blob = new Blob(['\ufeff' + [head.map(q).join(','), ...rows.map(r => r.map(q).join(','))].join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+}
+function hlCsv() {
+    const q = hlSq($hl('hlSearch').value), t = $hl('hlType').value, from = $hl('hlFrom').value, to = $hl('hlTo').value;
+    const rows = hlLogs.filter(r => (!t || r.type === t) && hlInRange(r.date, from, to) && hlMatch(r, q));
+    hlDownloadCsv('helpline-problem-log.csv', ['No', 'Case No.', 'Date', 'Car Plate No.', 'Entry Time', 'Exit Date', 'Exit Time', 'Station', 'Problem', 'Solution', 'Type of Parker', 'Remarks'],
+        [...rows].sort((a, b) => a.date.localeCompare(b.date)).map((r, i) => [i + 1, r.caseNo, hlFmt(r.date), r.plate, r.entry, hlFmt(r.exitDate), r.exit, r.station, r.reason, r.solution, r.type, r.remarks]));
+}
+function secCsv(k) {
+    const c = SECTIONS[k];
+    const q = hlSq($hl(k + '_q').value), from = $hl(k + '_from').value, to = $hl(k + '_to').value, st = c.statusFilter ? $hl(k + '_status').value : '';
+    const rows = S[k].logs.filter(r => (!st || r.status === st) && hlInRange(r.date, from, to) && hlMatch(r, q));
+    hlDownloadCsv(c.path + '-cases.csv', c.csv.head, [...rows].sort((a, b) => a.date.localeCompare(b.date)).map((r, i) => {
+        const base = c.csv.row(r); const ph = r.photos || [];
+        return [i + 1, ...base, ph.length, ph.map(p => p.label + ': ' + p.url).join('  ')];
+    }));
+}
+
+/* =====================================================================
+   HISTORY (audit trail, read only)
+   ===================================================================== */
+const AU_LABEL = { date: 'Date', plate: 'Car Plate', entry: 'Entry Time', exit: 'Exit Time', exitDate: 'Exit Date', station: 'Station', type: 'Type of Parker', reason: 'Problem / Reason', solution: 'Solution', remarks: 'Remarks',
+    clampTime: 'Clamp Time', location: 'Location', clampedBy: 'Clamped By', fineAmount: 'Fine (RM)', receiptNo: 'Receipt No.', status: 'Status', releaseDate: 'Release Date', releaseTime: 'Release Time', releasedBy: 'Released By',
+    time: 'Time', otherPlate: 'Other Vehicle Plate', description: 'Description', injuries: 'Injuries', policeReportNo: 'Police Report No.', insuranceRef: 'Insurance Claim Ref.', reportedBy: 'Reported By', actionTaken: 'Action Taken', cleanedBy: 'Cleaned By', photo: 'Photo' };
+const auVal = (field, v) => (field === 'fineAmount' && v !== '' && !isNaN(Number(v)) ? Number(v).toFixed(2) : v);
+async function auOpen(kind, id) {
+    $hl('auTitle').textContent = 'History';
+    $hl('auList').innerHTML = '<div class="hl-empty">Loading...</div>';
+    $hl('auModal').classList.add('is-open');
+    try {
+        const res = await requestJson('/admin/helpline-audit/' + kind + '/' + encodeURIComponent(id), { skipLoading: true });
+        const list = res.history || [];
+        const rec = (kind === 'logs' ? hlLogs : S[kind].logs).find(r => r.logId === id);
+        $hl('auTitle').textContent = 'History' + (rec ? ': ' + (rec.caseNo ? rec.caseNo + ' ' : '') + rec.plate : '');
+        const name = a => ({ CREATE: 'Created', UPDATE: 'Edited', IMPORT: 'Imported', PHOTO: 'Photo added' }[a] || a);
+        $hl('auList').innerHTML = list.map(a => `
+            <div class="au-item ${a.action === 'UPDATE' ? 'upd' : a.action === 'IMPORT' ? 'imp' : a.action === 'PHOTO' ? 'pho' : ''}">
+                <div class="au-head"><span>${escapeHtml(name(a.action))} by ${escapeHtml(a.changedBy)}</span><span class="au-when">${escapeHtml(new Date(a.changedAt).toLocaleString('en-MY'))}</span></div>
+                ${a.note && a.action !== 'UPDATE' ? `<div class="au-chg">${escapeHtml(a.note)}</div>` : ''}
+                ${(a.changes || []).map(c => a.action === 'PHOTO' ? `<div class="au-chg"><i>Photo:</i> <span class="au-new">${escapeHtml(c.to)}</span></div>` :
+                    `<div class="au-chg"><i>${escapeHtml(AU_LABEL[c.field] || c.field)}:</i> <span class="au-old">${escapeHtml(auVal(c.field, c.from)) || '(empty)'}</span> &rarr; <span class="au-new">${escapeHtml(auVal(c.field, c.to)) || '(empty)'}</span></div>`).join('')}
+            </div>`).join('') || '<div class="hl-empty">No history yet. Records imported from the old logbook show history from their first edit.</div>';
+    } catch (e) { $hl('auList').innerHTML = '<div class="hl-empty">' + escapeHtml(e.message) + '</div>'; }
+}
+
+/* =====================================================================
+   START
+   ===================================================================== */
+window.addEventListener('DOMContentLoaded', async function () {
+    try { await requestJson('/admin/me', { skipLoading: true }); }
+    catch (e) { hlMsg('Please log in to access the Helpline Logbook.'); setTimeout(() => { window.location.href = 'admin-login.html'; }, 1200); return; }
+
+    // tabs + the three generated panels
+    $hl('mainTabs').innerHTML = HL_TABS.map((t, i) => `<button class="hl-tab${i === 0 ? ' is-active' : ''}" id="tab_${t[0]}" data-testid="tab-${t[0]}">${t[1]}</button>`).join('');
+    HL_TABS.forEach(t => $hl('tab_' + t[0]).addEventListener('click', () => hlShowTab(t[0])));
+    Object.keys(SECTIONS).forEach(k => {
+        const p = document.createElement('div'); p.className = 'hl-panel'; p.id = 'panel_' + k; p.innerHTML = secPanelHtml(SECTIONS[k]);
+        $hl('panel_problems').parentNode.appendChild(p);
+        $hl(k + '_subRec').addEventListener('click', () => secSub(k, 'rec'));
+        $hl(k + '_subPho').addEventListener('click', () => secSub(k, 'pho'));
+        [k + '_q', k + '_from', k + '_to', k + '_status'].forEach(id => { if ($hl(id)) $hl(id).addEventListener('input', () => secRender(k)); });
+        [k + '_pq', k + '_pfrom', k + '_pto', k + '_pmiss'].forEach(id => $hl(id).addEventListener('input', () => secRenderPhotos(k)));
+        $hl(k + '_add').addEventListener('click', () => csOpen(k, null, 'new'));
+        $hl(k + '_csv').addEventListener('click', () => secCsv(k));
+    });
+
+    // problem log
+    ['hlSearch', 'hlType', 'hlFrom', 'hlTo'].forEach(id => $hl(id).addEventListener('input', hlRender));
+    $hl('hlAdd').addEventListener('click', () => hlOpen(null));
+    $hl('hlCancel').addEventListener('click', hlClose);
+    $hl('hlSave').addEventListener('click', hlSave);
+    $hl('hlCsv').addEventListener('click', hlCsv);
+    $hl('hlImport').addEventListener('click', hlImportLegacy);
+    // shared pop-ups
+    $hl('csCancel').addEventListener('click', csClose);
+    $hl('csSave').addEventListener('click', csSave);
+    $hl('auClose').addEventListener('click', () => $hl('auModal').classList.remove('is-open'));
+    $hl('lbClose').addEventListener('click', () => $hl('lbModal').classList.remove('is-open'));
+    $hl('lbModal').addEventListener('click', e => { if (e.target === $hl('lbModal')) $hl('lbModal').classList.remove('is-open'); });
+
+    const want = (location.hash || '').replace('#', '');
+    if (HL_TABS.some(t => t[0] === want)) hlShowTab(want);
+    try { await hlLoad(); } catch (e) { hlMsg(e.message); }
+    for (const k of Object.keys(SECTIONS)) { try { await secLoad(k); } catch (e) { hlMsg(e.message); } }
+});
+    </script>
+</body>
+</html>
