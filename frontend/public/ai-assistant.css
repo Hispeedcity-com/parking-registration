@@ -1,0 +1,19 @@
+#hsc-chat-launcher{position:fixed;right:24px;bottom:24px;width:60px;height:60px;border:0;border-radius:50%;background:#00c853;color:#fff;box-shadow:0 10px 28px #067d4540;font:700 30px Arial;cursor:pointer;z-index:99999}
+#hsc-chat-launcher:hover{background:#079c48;transform:translateY(-2px)}
+#hsc-chat-container{position:fixed;right:24px;bottom:96px;width:min(380px,92vw);height:min(560px,78vh);background:#fff;border:1px solid #d9eee1;border-radius:18px;box-shadow:0 18px 48px #102b1c38;display:flex;flex-direction:column;overflow:hidden;z-index:99998;opacity:0;visibility:hidden;transform:translateY(16px);transition:all .2s ease}
+#hsc-chat-container.active{opacity:1;visibility:visible;transform:translateY(0)}
+.hsc-chat-header{background:#00b94b;color:#fff;padding:15px 18px;display:flex;align-items:center;justify-content:space-between}
+.hsc-chat-header strong,.hsc-chat-header small{display:block}.hsc-chat-header strong{font-size:16px}.hsc-chat-header small{margin-top:4px;font-size:12px;opacity:.9}
+.hsc-status-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#b8ffc9;margin-right:6px}
+.hsc-chat-close-btn{border:0;background:transparent;color:#fff;font-size:26px;line-height:1;cursor:pointer}
+.hsc-chat-body{flex:1;overflow:auto;padding:15px;background:#f8fbf9;display:flex;flex-direction:column;gap:10px}
+.hsc-msg-wrap{max-width:85%;display:flex}.hsc-msg-user{align-self:flex-end}.hsc-msg-bot{align-self:flex-start}
+.hsc-bubble{white-space:pre-wrap;overflow-wrap:anywhere;border-radius:15px;padding:10px 13px;font:14px/1.5 Arial,sans-serif;background:#fff;color:#202a24;border:1px solid #e3e9e5}
+.hsc-msg-user .hsc-bubble{background:#00b94b;color:#fff;border-color:#00b94b;border-bottom-right-radius:4px}.hsc-msg-bot .hsc-bubble{border-bottom-left-radius:4px}
+.hsc-typing .hsc-bubble{color:#68756c;font-style:italic}
+.hsc-quick-actions{display:flex;gap:7px;padding:9px 12px;background:#f1f5f2;overflow-x:auto}
+.hsc-quick-btn{flex:0 0 auto;border:1px solid #b8e6c8;border-radius:999px;background:#fff;color:#087c3c;padding:7px 10px;font:600 12px Arial;cursor:pointer}
+.hsc-chat-footer{display:flex;gap:8px;padding:12px;border-top:1px solid #e6ece8;background:#fff}
+.hsc-chat-input{min-width:0;flex:1;border:1px solid #d7dfd9;border-radius:10px;padding:10px 12px;font:14px Arial;outline-color:#00b94b}
+.hsc-send-btn{width:42px;border:0;border-radius:10px;background:#00b94b;color:#fff;font-size:20px;cursor:pointer}
+@media(max-width:480px){#hsc-chat-launcher{right:16px;bottom:16px}#hsc-chat-container{right:10px;bottom:86px;width:calc(100vw - 20px);height:72vh}}
