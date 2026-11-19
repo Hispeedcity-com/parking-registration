@@ -1,0 +1,10 @@
+"""
+Official HispeedCity Portal Links
+"""
+
+PORTAL_HOME = "https://www.hispeedcity.com/index.html"
+
+REGISTER_URL = PORTAL_HOME
+RENEW_URL = PORTAL_HOME
+DEREGISTER_URL = PORTAL_HOME
+CONTACT_URL = PORTAL_HOME
