@@ -23,7 +23,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, TypeAdapter
 from starlette.concurrency import run_in_threadpool
 
 from email_service import build_receipt_email_message, build_renewal_receipt_email_message, send_email_with_attachment
-from receipt_renderer import ensure_playwright_chromium_installed, generate_renewal_receipt_pdf
+from receipt_renderer import generate_renewal_receipt_pdf
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env", override=True)
@@ -34,8 +34,6 @@ JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 DEFAULT_ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "Hispeedcity").strip()
 DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "Hispeedcity2026@").strip()
-RECEIPT_COMPANY_NAME = "Hispeedcity Sdn Bhd (1331446-H)"
-RECEIPT_COMPANY_ADDRESS = "-"
 
 cloudinary.config(
     cloud_name=os.environ["CLOUDINARY_CLOUD_NAME"],
@@ -667,7 +665,7 @@ class StatusUpdateRequest(BaseModel):
 
 
 class ApplicationApprovalRequest(BaseModel):
-    companyAddress: str = RECEIPT_COMPANY_ADDRESS
+    companyAddress: str
 
 class RenewalCreateResponse(BaseModel):
     message: str
@@ -884,7 +882,7 @@ async def approve_application(
     if application.get('status') == STATUS_APPROVED:
         raise HTTPException(status_code=400, detail='Application is already approved')
 
-    company_address = RECEIPT_COMPANY_ADDRESS
+    company_address = normalize_required_text(payload.companyAddress, 'Company Address')
     receipt_document = build_registration_receipt_document(application, company_address, username)
 
     try:
@@ -1001,7 +999,7 @@ def build_registration_receipt_document(application: dict[str, Any], company_add
         'renewalType': application.get('parkingType') or 'Individual Renewal',
         'customerName': application.get('fullName') or '',
         'customerEmail': application.get('email') or '',
-        'companyName': RECEIPT_COMPANY_NAME,
+        'companyName': application.get('companyName') or '',
         'companyAddress': company_address,
         'receiptNumber': generate_receipt_number(application.get('referenceNumber') or ''),
         'parkingType': application.get('parkingType') or 'Individual Renewal',
@@ -1294,15 +1292,14 @@ async def approve_renewal(
     if not renewal:
         raise HTTPException(status_code=404, detail='Renewal request not found')
 
-    renewal_type = str(renewal.get('renewalType') or '').strip().lower()
-    if renewal_type not in {'individual', 'individual renewal'}:
+    if str(renewal.get('renewalType') or '').strip() != 'Individual':
         raise HTTPException(status_code=400, detail='Approval receipt form is only available for Individual renewal requests')
 
     if renewal.get('status') == STATUS_APPROVED:
         raise HTTPException(status_code=400, detail='Renewal request is already approved')
 
-    company_name = RECEIPT_COMPANY_NAME
-    company_address = RECEIPT_COMPANY_ADDRESS
+    company_name = normalize_required_text(payload.companyName, 'Company Name')
+    company_address = normalize_required_text(payload.companyAddress, 'Company Address')
     product_month = normalize_required_text(payload.productMonth, 'Product / Subscription Month')
     parking_type = normalize_required_text(payload.parkingType, 'Parking Type')
     receipt_number = str(payload.receiptNumber or '').strip() or generate_receipt_number(renewal_reference)
@@ -1539,7 +1536,6 @@ async def get_application_by_reference(reference_number: str):
 
 @app.on_event('startup')
 async def startup_event():
-    await ensure_playwright_chromium_installed()
     try:
         admin_count = await db.admins.count_documents({})
         if admin_count == 0:
@@ -1565,5 +1561,581 @@ app.add_middleware(
     allow_methods=['*'],
     allow_headers=['*'],
 )
+
+# ======================================================================
+# HELPLINE CASE MANAGEMENT (NEW)  -  Problem Log, Car Clamping, Accident, Oil Leak
+#
+# WHERE TO PASTE: in backend-python-old/server.py (the Python backend that has api_router),
+#   directly ABOVE the line      app.include_router(api_router)
+#   (that line exists only once, at the very bottom of the file). Paste this WHOLE block.
+#
+# It only ADDS code. It re-uses what the portal already has, the same way the portal does:
+#   api_router, db, require_admin (admin login), db.counters + ReturnDocument (reference numbers like SP-2026-000095),
+#   cloudinary.uploader (file upload like the payment receipts), run_in_threadpool, UploadFile / File / Form.
+# New MongoDB collections (created automatically):
+#   helpline_logs, helpline_clamping, helpline_accidents, helpline_oilleaks, helpline_audit
+# There is NO delete route for any of them. Audit records cannot be edited either.
+# ======================================================================
+import json as helpline_json
+import re as helpline_re
+from datetime import timedelta as helpline_timedelta
+
+# --- case types: each one has its OWN case number format  PREFIX-YEAR-000001 -------------------------------
+HELPLINE_KINDS = {
+    'logs':      {'coll': 'helpline_logs',      'prefix': 'HL', 'type': 'HELPLINE CALL'},
+    'clamping':  {'coll': 'helpline_clamping',  'prefix': 'WC', 'type': 'WHEEL CLAMPING'},
+    'accidents': {'coll': 'helpline_accidents', 'prefix': 'AC', 'type': 'ACCIDENT'},
+    'oilleaks':  {'coll': 'helpline_oilleaks',  'prefix': 'OL', 'type': 'OIL LEAK'},
+}
+# photo proof labels per case type (the first one is the default)
+HELPLINE_PHOTO_LABELS = {
+    'clamping':  ['CLAMPED', 'RELEASED'],
+    'accidents': ['ACCIDENT SCENE', 'VEHICLE DAMAGE', 'OTHER'],
+    'oilleaks':  ['OIL LEAK', 'AFTER CLEANUP', 'OTHER'],
+}
+HELPLINE_STATIONS = ['ENTRY 101', 'ENTRY 102', 'EXIT 101', 'EXIT 102']
+HELPLINE_TYPES = ['Season', 'Hourly']
+HELPLINE_UPPER_FIELDS = ['plate', 'entry', 'exit', 'station', 'reason', 'solution', 'remarks']
+CLAMP_STATUSES = ['CLAMPED', 'RELEASED']
+CLAMP_UPPER_FIELDS = ['plate', 'location', 'reason', 'clampedBy', 'receiptNo', 'releasedBy', 'remarks']
+HELPLINE_MIN_DATE = '2024-01-01'          # nothing older than the first logbook month
+HELPLINE_MAX_OVERNIGHT_DAYS = 31          # longest stay accepted when an exit date is entered
+HELPLINE_MAX_PHOTO_BYTES = 8 * 1024 * 1024   # 8 MB per photo
+HELPLINE_MAX_PHOTOS_PER_REQUEST = 4
+HELPLINE_MAX_PHOTOS_PER_CASE = 30
+_helpline_indexes_ready = False
+
+
+def helpline_coll(kind: str):
+    return db[HELPLINE_KINDS[kind]['coll']]
+
+
+async def ensure_helpline_indexes():
+    """Create MongoDB indexes once (safe to repeat). Never blocks a request if it fails."""
+    global _helpline_indexes_ready
+    if _helpline_indexes_ready:
+        return
+    for kind in HELPLINE_KINDS:
+        coll = helpline_coll(kind)
+        for keys, opts in (('logId', {'unique': True}), ('caseNo', {'unique': True, 'sparse': True}), ('plate', {}), ([('date', -1)], {})):
+            try:
+                await coll.create_index(keys, **opts)
+            except Exception as exc:
+                print(f'Helpline index warning ({kind}): {exc}')
+    for keys, opts in (('auditId', {'unique': True}), ([('kind', 1), ('logId', 1), ('changedAt', -1)], {}), ([('changedAt', -1)], {})):
+        try:
+            await db.helpline_audit.create_index(keys, **opts)
+        except Exception as exc:
+            print(f'Helpline audit index warning: {exc}')
+    _helpline_indexes_ready = True
+
+
+# ---------------------------- CASE NUMBERS (same method as SP-2026-000095 / RN-2026-000001) ----------------------------
+async def helpline_next_case_numbers(kind: str, year: int, count: int = 1) -> list:
+    prefix = HELPLINE_KINDS[kind]['prefix']
+    counter = await db.counters.find_one_and_update(
+        {'_id': f'helpline-{prefix}-{year}'},
+        {'$inc': {'seq': count}},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    last = int((counter or {}).get('seq', count))
+    return [f'{prefix}-{year}-{n:06d}' for n in range(last - count + 1, last + 1)]
+
+
+# ---------------------------- VALIDATION HELPERS ----------------------------
+def helpline_check_date(value: str, label: str, limit_range: bool = True) -> str:
+    """Date must be a real YYYY-MM-DD date, not before Jan 2024 and not in the future."""
+    value = str(value or '').strip()
+    try:
+        datetime.strptime(value, '%Y-%m-%d')
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f'{label} must be a real date (YYYY-MM-DD)')
+    if limit_range:
+        if value < HELPLINE_MIN_DATE:
+            raise HTTPException(status_code=400, detail=f'{label} cannot be before 01/01/2024')
+        latest = (datetime.now(timezone.utc) + helpline_timedelta(days=1)).strftime('%Y-%m-%d')   # +1 day covers Malaysia time
+        if value > latest:
+            raise HTTPException(status_code=400, detail=f'{label} cannot be in the future')
+    return value
+
+
+def helpline_norm_time(value, label: str, required: bool = False) -> str:
+    """Accepts 14:28, 8:15, 8.15, 8:15 AM, 2:28 PM and stores 24-hour HH:MM."""
+    raw = str(value or '').strip().upper()
+    if not raw:
+        if required:
+            raise HTTPException(status_code=400, detail=f'{label} is required')
+        return ''
+    match = helpline_re.fullmatch(r'(\d{1,2})[:.](\d{2})\s*(AM|PM)?', raw)
+    if not match:
+        raise HTTPException(status_code=400, detail=f'{label} must be a time like 14:28 (24-hour)')
+    hour, minute, ampm = int(match.group(1)), int(match.group(2)), match.group(3)
+    if ampm:
+        if not 1 <= hour <= 12:
+            raise HTTPException(status_code=400, detail=f'{label} is not a valid time')
+        hour = (hour % 12) + (12 if ampm == 'PM' else 0)
+    if hour > 23 or minute > 59:
+        raise HTTPException(status_code=400, detail=f'{label} is not a valid time')
+    return f'{hour:02d}:{minute:02d}'
+
+
+def helpline_norm_plate(value) -> str:
+    plate = helpline_re.sub(r'\s+', ' ', str(value or '').strip().upper())
+    if not helpline_re.fullmatch(r'[A-Z0-9][A-Z0-9 ]{1,11}', plate):
+        raise HTTPException(status_code=400, detail='Car plate must be 2 to 12 letters or numbers, no symbols (example: JWN 1078)')
+    return plate
+
+
+def helpline_need(data: Dict[str, Any], rules) -> None:
+    for key, label in rules:
+        if not data.get(key):
+            raise HTTPException(status_code=400, detail=f'{label} is required')
+
+
+def helpline_limit_text(data: Dict[str, Any]) -> None:
+    for key, value in data.items():
+        if isinstance(value, str) and len(value) > 2000:
+            raise HTTPException(status_code=400, detail=f'{key} is too long (maximum 2000 characters)')
+
+
+# ---------------------------- AUDIT TRAIL ----------------------------
+# Every create, edit, photo and import is written to helpline_audit: who, when, and what changed (old value -> new value).
+# Audit records can never be edited or deleted (no route exists for that).
+def helpline_text(value) -> str:
+    return '' if value is None else str(value)
+
+
+def helpline_diff(old: Dict[str, Any], new: Dict[str, Any], fields) -> list:
+    return [{'field': f, 'from': helpline_text(old.get(f)), 'to': helpline_text(new.get(f))}
+            for f in fields if helpline_text(old.get(f)) != helpline_text(new.get(f))]
+
+
+async def helpline_audit_write(kind: str, log_id: str, plate: str, action: str, username: str, changes=None, note: str = '', case_no: str = ''):
+    await db.helpline_audit.insert_one({
+        'auditId': str(uuid.uuid4()), 'kind': kind, 'logId': log_id, 'caseNo': case_no, 'plate': plate, 'action': action,
+        'changedBy': username, 'changedAt': datetime.now(timezone.utc).isoformat(), 'changes': changes or [], 'note': note,
+    })
+
+
+@api_router.get('/admin/helpline-audit/{kind}/{log_id}')
+async def helpline_audit_for_record(kind: str, log_id: str, _: str = Depends(require_admin)):
+    if kind not in HELPLINE_KINDS:
+        raise HTTPException(status_code=404, detail='Unknown audit type')
+    docs = await db.helpline_audit.find({'kind': kind, 'logId': log_id}, {'_id': 0}).sort([('changedAt', -1)]).to_list(1000)
+    return {'history': docs}
+
+
+@api_router.get('/admin/helpline-audit')
+async def helpline_audit_recent(limit: int = 200, _: str = Depends(require_admin)):
+    docs = await db.helpline_audit.find({}, {'_id': 0}).sort([('changedAt', -1)]).to_list(max(1, min(limit, 2000)))
+    return {'history': docs}
+
+
+# ---------------------------- PHOTO PROOF (Cloudinary, same way as the payment receipts) ----------------------------
+def helpline_sniff_image(data: bytes) -> str:
+    if data[:3] == b'\xff\xd8\xff':
+        return 'image/jpeg'
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return 'image/png'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return 'image/webp'
+    return ''
+
+
+async def helpline_read_photos(files) -> list:
+    """Read and check uploaded photos (JPG, PNG or WEBP, up to 8 MB each, up to 4 per request)."""
+    files = [f for f in (files or []) if f is not None and getattr(f, 'filename', '')]
+    if len(files) > HELPLINE_MAX_PHOTOS_PER_REQUEST:
+        raise HTTPException(status_code=400, detail=f'Upload at most {HELPLINE_MAX_PHOTOS_PER_REQUEST} photos at a time')
+    out = []
+    for f in files:
+        contents = await f.read()
+        if not contents:
+            raise HTTPException(status_code=400, detail='A photo file is empty')
+        if len(contents) > HELPLINE_MAX_PHOTO_BYTES:
+            raise HTTPException(status_code=400, detail='A photo is larger than 8 MB')
+        content_type = helpline_sniff_image(contents)
+        if not content_type:
+            raise HTTPException(status_code=400, detail='Only JPG, PNG or WEBP photos are accepted')
+        name = helpline_re.sub(r'[^A-Za-z0-9._ -]', '_', os.path.basename(f.filename))[:80] or 'photo'
+        out.append({'bytes': contents, 'filename': name, 'contentType': content_type})
+    return out
+
+
+def helpline_pick_label(kind: str, label) -> str:
+    allowed = HELPLINE_PHOTO_LABELS.get(kind, [])
+    label = str(label or '').strip().upper() or (allowed[0] if allowed else '')
+    if label not in allowed:
+        raise HTTPException(status_code=400, detail='Photo type must be one of: ' + ', '.join(allowed))
+    return label
+
+
+async def helpline_upload_photo(kind: str, photo: Dict[str, Any], label: str, username: str) -> Dict[str, Any]:
+    prefix = HELPLINE_KINDS[kind]['prefix']
+    try:
+        result = await run_in_threadpool(
+            lambda: cloudinary.uploader.upload(
+                photo['bytes'],
+                resource_type='image',
+                folder=f'hispeedcity/helpline/{prefix}',
+                public_id=f'{prefix}-{uuid.uuid4().hex}',
+            )
+        )
+    except Exception as exc:
+        print(f'Helpline photo upload failed: {exc}')
+        raise HTTPException(status_code=502, detail='Photo upload failed. Please try again.')
+    return {
+        'photoId': str(uuid.uuid4()), 'label': label, 'url': result['secure_url'], 'publicId': result.get('public_id', ''),
+        'filename': photo['filename'], 'size': len(photo['bytes']), 'contentType': photo['contentType'],
+        'uploadedAt': datetime.now(timezone.utc).isoformat(), 'uploadedBy': username,
+    }
+
+
+def helpline_parse_record(model, raw: str):
+    try:
+        return model.model_validate(helpline_json.loads(raw))
+    except Exception:
+        raise HTTPException(status_code=400, detail='The record data is not valid')
+
+
+# ---------------------------- PROBLEM LOG (case type HL) ----------------------------
+HELPLINE_AUDIT_FIELDS = ['date', 'plate', 'entry', 'exitDate', 'exit', 'station', 'type', 'reason', 'solution', 'remarks']
+
+
+class HelplineLogPayload(BaseModel):
+    date: str
+    plate: str
+    entry: Optional[str] = ''
+    exitDate: Optional[str] = ''      # only filled when the car stayed overnight
+    exit: Optional[str] = ''
+    station: str
+    reason: str
+    solution: Optional[str] = ''
+    type: str
+    remarks: Optional[str] = ''
+
+
+def clean_helpline_log(payload: HelplineLogPayload, legacy: bool = False, existing: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    data = payload.model_dump()
+    for key in HELPLINE_UPPER_FIELDS:
+        data[key] = str(data.get(key) or '').strip().upper()          # always CAPITAL
+    data['type'] = str(data.get('type') or '').strip().capitalize()
+    data['exitDate'] = str(data.get('exitDate') or '').strip()
+    helpline_limit_text(data)
+    if legacy:
+        # Old Excel records may be incomplete or oddly written. Only a real date and a plate are needed.
+        data['date'] = helpline_check_date(data['date'], 'Date', limit_range=False)
+        data['plate'] = helpline_re.sub(r'\s+', ' ', data['plate'])
+        if not data['plate']:
+            raise HTTPException(status_code=400, detail='Car plate is required')
+        if data['type'] not in HELPLINE_TYPES and data['type'] != '':
+            raise HTTPException(status_code=400, detail='Type of parker must be Season or Hourly')
+        return data
+
+    existing = existing or {}
+    same = lambda key: bool(existing) and data[key] == helpline_text(existing.get(key))   # unchanged value on an old record is not re-checked
+    if not same('date'):
+        data['date'] = helpline_check_date(data['date'], 'Date')
+    if not same('plate'):
+        data['plate'] = helpline_norm_plate(data['plate'])
+    for key, label in (('entry', 'Entry time'), ('reason', 'Problem'), ('solution', 'Solution')):
+        if not data[key] and (not existing or existing.get(key)):
+            raise HTTPException(status_code=400, detail=f'{label} is required')
+    if data['entry'] and not same('entry'):
+        data['entry'] = helpline_norm_time(data['entry'], 'Entry time')
+    if data['exit'] and not same('exit'):
+        data['exit'] = helpline_norm_time(data['exit'], 'Exit time')
+    if data['exitDate']:
+        data['exitDate'] = helpline_check_date(data['exitDate'], 'Exit date')
+        if data['exitDate'] < data['date']:
+            raise HTTPException(status_code=400, detail='Exit date cannot be before the entry date')
+        days = (datetime.strptime(data['exitDate'], '%Y-%m-%d') - datetime.strptime(data['date'], '%Y-%m-%d')).days
+        if days > HELPLINE_MAX_OVERNIGHT_DAYS:
+            raise HTTPException(status_code=400, detail=f'Exit date is more than {HELPLINE_MAX_OVERNIGHT_DAYS} days after the entry date')
+        if not data['exit']:
+            raise HTTPException(status_code=400, detail='Exit time is required when an exit date is entered')
+    overnight = bool(data['exitDate']) and data['exitDate'] > data['date']
+    if data['entry'] and data['exit'] and not overnight and data['exit'] < data['entry'] and (not same('entry') or not same('exit')):
+        raise HTTPException(status_code=400, detail='Exit time is earlier than entry time. If the car stayed overnight, enter the Exit Date.')
+    if data['type'] not in HELPLINE_TYPES and not (existing and not existing.get('type') and data['type'] == ''):
+        raise HTTPException(status_code=400, detail='Type of parker must be Season or Hourly')
+    if not (data['station'] in HELPLINE_STATIONS or (existing and data['station'] == existing.get('station', ''))):
+        raise HTTPException(status_code=400, detail='Station must be ENTRY 101, ENTRY 102, EXIT 101 or EXIT 102')
+    return data
+
+
+@api_router.get('/admin/helpline-logs')
+async def list_helpline_logs(_: str = Depends(require_admin)):
+    await ensure_helpline_indexes()
+    docs = await db.helpline_logs.find({}, {'_id': 0}).sort([('date', -1), ('createdAt', -1)]).to_list(10000)
+    return {'logs': docs}
+
+
+@api_router.post('/admin/helpline-logs')
+async def create_helpline_log(payload: HelplineLogPayload, username: str = Depends(require_admin)):
+    await ensure_helpline_indexes()
+    data = clean_helpline_log(payload)
+    if await db.helpline_logs.count_documents({'plate': data['plate'], 'date': data['date'], 'entry': data['entry'], 'station': data['station']}) > 0:
+        raise HTTPException(status_code=409, detail='This record already exists (same plate, date, entry time and station). Use Edit instead.')
+    case_no = (await helpline_next_case_numbers('logs', int(data['date'][:4])))[0]
+    now = datetime.now(timezone.utc).isoformat()
+    data.update({'logId': str(uuid.uuid4()), 'caseNo': case_no, 'caseType': HELPLINE_KINDS['logs']['type'],
+                 'createdAt': now, 'createdBy': username, 'updatedAt': now, 'updatedBy': username})
+    await db.helpline_logs.insert_one(dict(data))
+    await helpline_audit_write('logs', data['logId'], data['plate'], 'CREATE', username, note='RECORD CREATED', case_no=case_no)
+    return {'message': f'Case {case_no} saved', 'log': data}
+
+
+@api_router.put('/admin/helpline-logs/{log_id}')
+async def update_helpline_log(log_id: str, payload: HelplineLogPayload, username: str = Depends(require_admin)):
+    existing = await db.helpline_logs.find_one({'logId': log_id}, {'_id': 0})
+    if not existing:
+        raise HTTPException(status_code=404, detail='Log not found')
+    data = clean_helpline_log(payload, existing=existing)
+    changes = helpline_diff(existing, data, HELPLINE_AUDIT_FIELDS)
+    if not changes:
+        return {'message': 'No changes', 'log': existing}
+    data.update({'updatedAt': datetime.now(timezone.utc).isoformat(), 'updatedBy': username})
+    await db.helpline_logs.update_one({'logId': log_id}, {'$set': data})
+    await helpline_audit_write('logs', log_id, data['plate'], 'UPDATE', username, changes, case_no=existing.get('caseNo', ''))
+    return {'message': 'Log updated', 'log': {**existing, **data}}
+
+
+@api_router.post('/admin/helpline-logs/import-legacy')
+async def import_legacy_helpline_logs(payloads: list[HelplineLogPayload], username: str = Depends(require_admin)):
+    # One-time import of the old Excel logbook. Refused if any record already exists (no duplicates).
+    # Every old record also gets its own case number (HL-YEAR-000001 ...), oldest first.
+    await ensure_helpline_indexes()
+    if await db.helpline_logs.count_documents({}) > 0:
+        raise HTTPException(status_code=409, detail='Logbook already has records. Import skipped.')
+    now = datetime.now(timezone.utc).isoformat()
+    docs = []
+    for item in payloads:
+        data = clean_helpline_log(item, legacy=True)
+        data.update({'logId': str(uuid.uuid4()), 'caseType': HELPLINE_KINDS['logs']['type'], 'createdAt': now, 'createdBy': username,
+                     'updatedAt': now, 'updatedBy': username, 'legacy': True})
+        docs.append(data)
+    by_year: Dict[int, list] = {}
+    for d in sorted(docs, key=lambda x: x['date']):
+        by_year.setdefault(int(d['date'][:4]), []).append(d)
+    for year, group in sorted(by_year.items()):
+        for d, number in zip(group, await helpline_next_case_numbers('logs', year, len(group))):
+            d['caseNo'] = number
+    if docs:
+        await db.helpline_logs.insert_many([dict(d) for d in docs])
+        await helpline_audit_write('logs', '*', '', 'IMPORT', username, note=f'{len(docs)} OLD LOGBOOK RECORDS IMPORTED')
+    return {'message': f'{len(docs)} old records imported', 'count': len(docs)}
+
+
+# ---------------------------- SAME ROUTES FOR CLAMPING, ACCIDENT AND OIL LEAK ----------------------------
+def helpline_register_case_routes(kind, path, PayloadModel, clean_fn, audit_fields, dup_fields, required_photo_label=None, create_check=None, update_check=None):
+    """Creates: list, create (with photos), edit, add photos.  No delete route is created."""
+
+    @api_router.get(f'/admin/helpline-{path}', name=f'helpline_list_{kind}')
+    async def list_cases(_: str = Depends(require_admin)):
+        await ensure_helpline_indexes()
+        docs = await helpline_coll(kind).find({}, {'_id': 0}).sort([('date', -1), ('createdAt', -1)]).to_list(10000)
+        return {'logs': docs}
+
+    @api_router.post(f'/admin/helpline-{path}', name=f'helpline_create_{kind}')
+    async def create_case(record: str = Form(...), photos: List[UploadFile] = File(default=[]), photoLabel: Optional[str] = Form(None), username: str = Depends(require_admin)):
+        await ensure_helpline_indexes()
+        data = clean_fn(helpline_parse_record(PayloadModel, record))
+        if create_check:
+            create_check(data)
+        picked = await helpline_read_photos(photos)
+        if required_photo_label and not picked:
+            raise HTTPException(status_code=400, detail='A photo showing the car plate is required to save this case')
+        label = helpline_pick_label(kind, photoLabel if not required_photo_label else required_photo_label) if picked else ''
+        if await helpline_coll(kind).count_documents({k: data[k] for k in dup_fields}) > 0:
+            raise HTTPException(status_code=409, detail='This case already exists (same plate, date and time). Use Edit instead.')
+        uploaded = [await helpline_upload_photo(kind, p, label, username) for p in picked]
+        case_no = (await helpline_next_case_numbers(kind, int(data['date'][:4])))[0]
+        now = datetime.now(timezone.utc).isoformat()
+        data.update({'logId': str(uuid.uuid4()), 'caseNo': case_no, 'caseType': HELPLINE_KINDS[kind]['type'], 'photos': uploaded,
+                     'createdAt': now, 'createdBy': username, 'updatedAt': now, 'updatedBy': username})
+        await helpline_coll(kind).insert_one(dict(data))
+        await helpline_audit_write(kind, data['logId'], data['plate'], 'CREATE', username, note='RECORD CREATED' + (f' WITH {len(uploaded)} PHOTO(S)' if uploaded else ''), case_no=case_no)
+        return {'message': f'Case {case_no} saved', 'log': data}
+
+    async def update_case(log_id: str, payload: PayloadModel, username: str = Depends(require_admin)):
+        existing = await helpline_coll(kind).find_one({'logId': log_id}, {'_id': 0})
+        if not existing:
+            raise HTTPException(status_code=404, detail='Case not found')
+        data = clean_fn(payload)
+        if update_check:
+            update_check(existing, data)
+        changes = helpline_diff(existing, data, audit_fields)
+        if not changes:
+            return {'message': 'No changes', 'log': existing}
+        data.update({'updatedAt': datetime.now(timezone.utc).isoformat(), 'updatedBy': username})
+        await helpline_coll(kind).update_one({'logId': log_id}, {'$set': data})
+        await helpline_audit_write(kind, log_id, data['plate'], 'UPDATE', username, changes, case_no=existing.get('caseNo', ''))
+        return {'message': 'Case updated', 'log': {**existing, **data}}
+
+    # server.py uses 'from __future__ import annotations' (type hints are text), so give FastAPI the real model class here
+    update_case.__annotations__['payload'] = PayloadModel
+    api_router.add_api_route(f'/admin/helpline-{path}/{{log_id}}', update_case, methods=['PUT'], name=f'helpline_update_{kind}')
+
+    @api_router.post(f'/admin/helpline-{path}/{{log_id}}/photos', name=f'helpline_photos_{kind}')
+    async def add_photos(log_id: str, label: str = Form(...), photos: List[UploadFile] = File(...), username: str = Depends(require_admin)):
+        existing = await helpline_coll(kind).find_one({'logId': log_id}, {'_id': 0})
+        if not existing:
+            raise HTTPException(status_code=404, detail='Case not found')
+        label = helpline_pick_label(kind, label)
+        picked = await helpline_read_photos(photos)
+        if not picked:
+            raise HTTPException(status_code=400, detail='Choose a photo to upload')
+        if len(existing.get('photos', [])) + len(picked) > HELPLINE_MAX_PHOTOS_PER_CASE:
+            raise HTTPException(status_code=400, detail=f'A case can have at most {HELPLINE_MAX_PHOTOS_PER_CASE} photos')
+        uploaded = [await helpline_upload_photo(kind, p, label, username) for p in picked]
+        now = datetime.now(timezone.utc).isoformat()
+        await helpline_coll(kind).update_one({'logId': log_id}, {'$push': {'photos': {'$each': uploaded}}, '$set': {'updatedAt': now, 'updatedBy': username}})
+        await helpline_audit_write(kind, log_id, existing.get('plate', ''), 'PHOTO', username,
+                                   [{'field': 'photo', 'from': '', 'to': f"{label}: {u['filename']}"} for u in uploaded],
+                                   note=f'{len(uploaded)} PHOTO(S) ADDED: {label}', case_no=existing.get('caseNo', ''))
+        return {'message': f'{len(uploaded)} photo(s) added', 'photos': uploaded}
+
+
+# ---------------------------- CAR CLAMPING (case type WC) ----------------------------
+CLAMP_AUDIT_FIELDS = ['date', 'clampTime', 'plate', 'type', 'location', 'reason', 'clampedBy', 'fineAmount', 'receiptNo', 'status', 'releaseDate', 'releaseTime', 'releasedBy', 'remarks']
+
+
+class ClampPayload(BaseModel):
+    date: str
+    plate: str
+    location: str
+    clampTime: str
+    type: str
+    reason: str
+    clampedBy: str
+    status: str = 'CLAMPED'
+    fineAmount: Optional[float] = None
+    receiptNo: Optional[str] = ''
+    releaseDate: Optional[str] = ''
+    releaseTime: Optional[str] = ''
+    releasedBy: Optional[str] = ''
+    remarks: Optional[str] = ''
+
+
+def clean_clamp(payload: ClampPayload) -> Dict[str, Any]:
+    data = payload.model_dump()
+    for key in CLAMP_UPPER_FIELDS:
+        data[key] = str(data.get(key) or '').strip().upper()
+    data['status'] = str(data.get('status') or '').strip().upper()
+    data['type'] = str(data.get('type') or '').strip().capitalize()
+    helpline_limit_text(data)
+    data['date'] = helpline_check_date(data['date'], 'Clamp date')
+    data['plate'] = helpline_norm_plate(data['plate'])
+    data['clampTime'] = helpline_norm_time(data.get('clampTime'), 'Clamp time', required=True)
+    helpline_need(data, (('location', 'Location'), ('reason', 'Reason'), ('clampedBy', 'Clamped by')))
+    if data['type'] not in HELPLINE_TYPES:
+        raise HTTPException(status_code=400, detail='Type of parker must be Season or Hourly')
+    if data['status'] not in CLAMP_STATUSES:
+        raise HTTPException(status_code=400, detail='Status must be CLAMPED or RELEASED')
+    fine = data.get('fineAmount')
+    if fine is not None:
+        if fine < 0 or fine > 100000:
+            raise HTTPException(status_code=400, detail='Fine amount must be between 0 and 100000')
+        data['fineAmount'] = round(float(fine), 2)
+    if data['status'] == 'RELEASED':
+        data['releaseDate'] = helpline_check_date(data.get('releaseDate'), 'Release date')
+        data['releaseTime'] = helpline_norm_time(data.get('releaseTime'), 'Release time', required=True)
+        if not data['releasedBy']:
+            raise HTTPException(status_code=400, detail='Released by is required when status is RELEASED')
+        if (data['releaseDate'], data['releaseTime']) < (data['date'], data['clampTime']):
+            raise HTTPException(status_code=400, detail='Release date and time cannot be before the clamp date and time')
+    else:
+        data['releaseDate'] = ''
+        data['releaseTime'] = ''
+        data['releasedBy'] = ''
+    return data
+
+
+def clamp_create_check(data: Dict[str, Any]) -> None:
+    if data['status'] != 'CLAMPED':
+        raise HTTPException(status_code=400, detail='A new clamping case starts as CLAMPED. Release it later with the release photo.')
+
+
+def clamp_update_check(existing: Dict[str, Any], data: Dict[str, Any]) -> None:
+    if data['status'] == 'RELEASED' and not any(p.get('label') == 'RELEASED' for p in existing.get('photos', [])):
+        raise HTTPException(status_code=400, detail='Upload the photo of the released car before releasing the vehicle')
+
+
+helpline_register_case_routes('clamping', 'clamping', ClampPayload, clean_clamp, CLAMP_AUDIT_FIELDS, ['plate', 'date', 'clampTime'],
+                              required_photo_label='CLAMPED', create_check=clamp_create_check, update_check=clamp_update_check)
+
+
+# ---------------------------- ACCIDENT (case type AC) ----------------------------
+ACCIDENT_UPPER_FIELDS = ['plate', 'otherPlate', 'location', 'description', 'injuries', 'policeReportNo', 'insuranceRef', 'reportedBy', 'remarks']
+ACCIDENT_AUDIT_FIELDS = ['date', 'time', 'plate', 'otherPlate', 'location', 'description', 'injuries', 'policeReportNo', 'insuranceRef', 'reportedBy', 'remarks']
+
+
+class AccidentPayload(BaseModel):
+    date: str
+    time: str
+    plate: str
+    otherPlate: Optional[str] = ''
+    location: str
+    description: str
+    injuries: str = 'NO'
+    policeReportNo: Optional[str] = ''
+    insuranceRef: Optional[str] = ''
+    reportedBy: str
+    remarks: Optional[str] = ''
+
+
+def clean_accident(payload: AccidentPayload) -> Dict[str, Any]:
+    data = payload.model_dump()
+    for key in ACCIDENT_UPPER_FIELDS:
+        data[key] = str(data.get(key) or '').strip().upper()
+    helpline_limit_text(data)
+    data['date'] = helpline_check_date(data['date'], 'Accident date')
+    data['time'] = helpline_norm_time(data.get('time'), 'Accident time', required=True)
+    data['plate'] = helpline_norm_plate(data['plate'])
+    if data['otherPlate']:
+        data['otherPlate'] = helpline_norm_plate(data['otherPlate'])
+    helpline_need(data, (('location', 'Location'), ('description', 'Description'), ('reportedBy', 'Reported by')))
+    if data['injuries'] not in ('NO', 'YES'):
+        raise HTTPException(status_code=400, detail='Injuries must be NO or YES')
+    return data
+
+
+helpline_register_case_routes('accidents', 'accidents', AccidentPayload, clean_accident, ACCIDENT_AUDIT_FIELDS, ['plate', 'date', 'time'])
+
+
+# ---------------------------- OIL LEAK (case type OL) ----------------------------
+OILLEAK_UPPER_FIELDS = ['plate', 'location', 'description', 'actionTaken', 'cleanedBy', 'reportedBy', 'remarks']
+OILLEAK_AUDIT_FIELDS = ['date', 'time', 'plate', 'location', 'description', 'actionTaken', 'cleanedBy', 'reportedBy', 'remarks']
+
+
+class OilLeakPayload(BaseModel):
+    date: str
+    time: str
+    plate: str                       # type UNKNOWN if the vehicle is not known
+    location: str
+    description: str
+    actionTaken: str
+    cleanedBy: Optional[str] = ''
+    reportedBy: str
+    remarks: Optional[str] = ''
+
+
+def clean_oilleak(payload: OilLeakPayload) -> Dict[str, Any]:
+    data = payload.model_dump()
+    for key in OILLEAK_UPPER_FIELDS:
+        data[key] = str(data.get(key) or '').strip().upper()
+    helpline_limit_text(data)
+    data['date'] = helpline_check_date(data['date'], 'Oil leak date')
+    data['time'] = helpline_norm_time(data.get('time'), 'Oil leak time', required=True)
+    data['plate'] = helpline_norm_plate(data['plate'])
+    helpline_need(data, (('location', 'Location'), ('description', 'Description'), ('actionTaken', 'Action taken'), ('reportedBy', 'Reported by')))
+    return data
+
+
+helpline_register_case_routes('oilleaks', 'oil-leaks', OilLeakPayload, clean_oilleak, OILLEAK_AUDIT_FIELDS, ['plate', 'date', 'time'])
+# ============================ END HELPLINE CASE MANAGEMENT ============================
+
 
 app.include_router(api_router)
