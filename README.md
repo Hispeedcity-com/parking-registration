@@ -31,7 +31,7 @@ The backend already has a production Docker entrypoint in [backend/Dockerfile](b
 - `CLOUDINARY_CLOUD_NAME`
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
-- `CORS_ORIGIN` with your GitHub Pages origin and any local origins you still use
+- `CORS_ORIGIN` with `https://hispeedcity.com`, `https://www.hispeedcity.com`, and `https://parking-registration-test.hostless.site` if the Hostless preview is also used. Separate multiple origins with commas.
 - `RESEND_API_KEY` for automatic approval emails
 
 The app loads [backend/.env](backend/.env) locally, but in Cloud Run you should set the variables in the service configuration instead of relying on a file.
@@ -49,3 +49,11 @@ The frontend is static and can be deployed from GitHub Pages with the workflow i
 Set a repository variable named `API_BASE_URL` to your Cloud Run API base, for example `https://hispeedcity-backend-635388135964.us-central1.run.app/api`.
 
 The workflow writes that value into [frontend/public/config.js](frontend/public/config.js) before building so the browser can reach the deployed backend.
+
+### AI Assistant
+
+The assistant backend modules and FAQ data are under `backend/`, including `backend/data/processed/faq_clean.csv`. Build the backend with the `backend/` folder as its build context and redeploy it after changing chatbot code. The parking homepage loads the widget from `frontend/public/ai-assistant.js` and `frontend/public/ai-assistant.css`.
+
+### Hostless deployment
+
+The current Hostless frontend and API use `https://parking-registration-test.hostless.site`. The chatbot widget falls back to `https://parking-registration-test.hostless.site/api` when no `window.__API_BASE_URL__` is injected. The older `render.yaml` configuration is not used for Hostless deployment.
