@@ -546,7 +546,11 @@ ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'Hispeedcity')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Hispeedcity2026@')
 CORS_ORIGINS = parse_cors_origins(os.environ.get('CORS_ORIGIN', os.environ.get('CORS_ORIGINS', '*')))
 if CORS_ORIGINS != ['*']:
-    CORS_ORIGINS = list(dict.fromkeys(CORS_ORIGINS + ['https://hispeedcity.com', 'https://www.hispeedcity.com']))
+    CORS_ORIGINS = list(dict.fromkeys(CORS_ORIGINS + [
+        'https://hispeedcity.com',
+        'https://www.hispeedcity.com',
+        'https://parking-registration-test.hostless.site',
+    ]))
 MONGO_TIMEOUT_MS = int(os.environ.get('MONGO_TIMEOUT_MS', '5000'))
 
 cloudinary.config(
