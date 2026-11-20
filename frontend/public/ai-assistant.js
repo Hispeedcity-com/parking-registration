@@ -8,7 +8,7 @@
   const baseUrl = window.__API_BASE_URL__ || (
     window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
       ? 'http://127.0.0.1:5000/api'
-      : 'https://hispeedcity-backend-635388135964.us-central1.run.app/api'
+      : 'https://parking-registration-test.hostless.site/api'
   );
   const apiUrl = `${baseUrl.replace(/\/$/, '')}/ai/chat`;
   let sessionId = sessionStorage.getItem('hscAssistantSession');
