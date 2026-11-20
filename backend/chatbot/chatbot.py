@@ -18,14 +18,14 @@ Knowledge Filter → Keyword Search → Response Generator
 
 import re
 
-from backend.loaders.faq_loader import FAQLoader
-from backend.converters.faq_converter import FAQConverter
-from backend.retrieval.keyword_search import KeywordSearch
-from backend.intents.detector import IntentDetector
-from backend.filters.knowledge_filter import KnowledgeFilter
-from backend.generator.response_generator import ResponseGenerator
-from backend.portal.portal_service import PortalService
-from backend.utils.plate_extractor import VehiclePlateExtractor
+from loaders.faq_loader import FAQLoader
+from converters.faq_converter import FAQConverter
+from retrieval.keyword_search import KeywordSearch
+from intents.detector import IntentDetector
+from filters.knowledge_filter import KnowledgeFilter
+from generator.response_generator import ResponseGenerator
+from portal.portal_service import PortalService
+from utils.plate_extractor import VehiclePlateExtractor
 
 
 # Pattern for reference numbers: SP-2026-000001 or RN-2026-000001
