@@ -1839,7 +1839,7 @@ def clean_helpline_log(payload: HelplineLogPayload, legacy: bool = False, existi
         data['date'] = helpline_check_date(data['date'], 'Date')
     if not same('plate'):
         data['plate'] = helpline_norm_plate(data['plate'])
-    for key, label in (('entry', 'Entry time'), ('reason', 'Problem'), ('solution', 'Solution')):
+    for key, label in (('reason', 'Problem'), ('solution', 'Solution')):
         if not data[key] and (not existing or existing.get(key)):
             raise HTTPException(status_code=400, detail=f'{label} is required')
     if data['entry'] and not same('entry'):
