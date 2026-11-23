@@ -5,11 +5,10 @@
   style.href = 'ai-assistant.css';
   document.head.appendChild(style);
 
-  const baseUrl = window.__API_BASE_URL__ || (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://127.0.0.1:5000/api'
-      : 'https://parking-registration-test-api.hostless.app/api'
-  );
+  // Ignore stale injected config: production must use the verified Hostless API.
+  const baseUrl = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+    ? 'http://127.0.0.1:5000/api'
+    : 'https://parking-registration-test-api.hostless.app/api';
   const apiUrl = `${baseUrl.replace(/\/$/, '')}/ai/chat`;
   let sessionId = sessionStorage.getItem('hscAssistantSession');
   if (!sessionId) {
@@ -83,9 +82,21 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message, session_id: sessionId }),
         });
-        const data = await response.json();
+        const rawBody = await response.text();
+        let data = {};
+        try {
+          data = rawBody ? JSON.parse(rawBody) : {};
+        } catch {
+          data = { detail: rawBody || `HTTP ${response.status}` };
+        }
         typing.remove();
-        if (!response.ok) throw new Error(data.detail || 'Assistant is temporarily unavailable.');
+        if (!response.ok) {
+          const detail = data.detail || data.message || 'Request failed';
+          throw new Error(`Chat API ${response.status}: ${detail} (${apiUrl})`);
+        }
+        if (typeof data.answer !== 'string') {
+          throw new Error('The chat API returned an unexpected response.');
+        }
         appendMessage(data.answer || 'Sorry, I could not find an answer.', 'bot');
       } catch (error) {
         typing.remove();
