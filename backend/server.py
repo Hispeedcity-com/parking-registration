@@ -545,12 +545,6 @@ JWT_SECRET = os.environ.get('JWT_SECRET', 'change-me')
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'Hispeedcity')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'Hispeedcity2026@')
 CORS_ORIGINS = parse_cors_origins(os.environ.get('CORS_ORIGIN', os.environ.get('CORS_ORIGINS', '*')))
-if CORS_ORIGINS != ['*']:
-    CORS_ORIGINS = list(dict.fromkeys(CORS_ORIGINS + [
-        'https://hispeedcity.com',
-        'https://www.hispeedcity.com',
-        'https://parking-registration-test.hostless.site',
-    ]))
 MONGO_TIMEOUT_MS = int(os.environ.get('MONGO_TIMEOUT_MS', '5000'))
 
 cloudinary.config(
@@ -2166,17 +2160,12 @@ _assistant_sessions: dict[str, dict[str, Any]] = {}
 def assistant_bot():
     global _assistant_bot
     if _assistant_bot is None:
-        import sys
-        backend_dir = str(ROOT_DIR)
-        if backend_dir not in sys.path:
-            sys.path.insert(0, backend_dir)
+        # Hostless builds the backend directory as the application root, so
+        # backend modules are imported as top-level packages (chatbot, loaders,
+        # models, etc.), not through a nonexistent `backend` parent package.
         from chatbot.chatbot import ChatBot
         _assistant_bot = ChatBot()
     return _assistant_bot
-
-
-def assistant_ask(message: str, context: dict[str, Any]) -> dict[str, Any]:
-    return assistant_bot().ask(message, context)
 
 
 def assistant_plate_pattern(value: str) -> str:
@@ -2250,7 +2239,7 @@ async def assistant_chat(payload: AssistantChatRequest):
     session_id = (payload.session_id or str(uuid.uuid4()))[:128]
     context = _assistant_sessions.get(session_id, {})
     try:
-        result = await run_in_threadpool(assistant_ask, message, context)
+        result = await run_in_threadpool(assistant_bot().ask, message, context)
     except Exception as exc:
         print(f'AI assistant request failed: {exc}')
         raise HTTPException(status_code=503, detail='The assistant is temporarily unavailable. Please try again.')
