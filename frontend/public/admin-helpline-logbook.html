@@ -117,7 +117,7 @@
             <div class="hl-grid">
                 <div><label>Date *</label><input type="date" id="f_date"></div>
                 <div><label>Car Plate No. *</label><input id="f_plate"></div>
-                <div><label>Entry Time *</label><input id="f_entry" placeholder="e.g. 14:28"></div>
+                <div><label>Entry Time</label><input id="f_entry" placeholder="e.g. 14:28"></div>
                 <div><label>Exit Time</label><input id="f_exit" placeholder="e.g. 16:37"></div>
                 <div><label>Exit Date <small>(only if overnight)</small></label><input type="date" id="f_exitDate"></div>
                 <div><label>Type of Parker *</label><select id="f_type"><option>Season</option><option>Hourly</option></select></div>
@@ -274,7 +274,7 @@ async function hlSave() {
     const old = hlEditId ? (hlLogs.find(r => r.logId === hlEditId) || {}) : null;
     // new entries need every required field; old records may keep a field blank if it was already blank
     const need = (k, label) => (!o[k] && (!old || old[k])) ? label : null;
-    const missing = [need('date', 'Date'), need('plate', 'Car Plate'), need('entry', 'Entry Time'), need('station', 'Station'), need('reason', 'Problem'), need('solution', 'Solution')].filter(Boolean);
+    const missing = [need('date', 'Date'), need('plate', 'Car Plate'), need('station', 'Station'), need('reason', 'Problem'), need('solution', 'Solution')].filter(Boolean);
     if (missing.length) { hlMsg('Please fill: ' + missing.join(', ') + '.'); return; }
     if (o.entry && o.exit && !o.exitDate && /^\d{1,2}[:.]\d{2}$/.test(o.entry) && /^\d{1,2}[:.]\d{2}$/.test(o.exit) && o.exit.replace('.', ':').padStart(5, '0') < o.entry.replace('.', ':').padStart(5, '0')) {
         hlMsg('Exit time is earlier than entry time. If the car stayed overnight, enter the Exit Date.'); return;
