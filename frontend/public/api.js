@@ -1,6 +1,6 @@
 const API_BASE_URL = window.__API_BASE_URL__ || (
     window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-        ? 'http://127.0.0.1:5000/api'
+        ? 'https://parking-registration-test-api.hostless.app/api'
         : 'https://parking-registration-test.hostless.site/api'
 );
 let activeRequestCount = 0;
